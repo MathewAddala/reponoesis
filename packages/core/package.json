@@ -1,0 +1,44 @@
+{
+  "name": "@engine/core",
+  "version": "0.1.0",
+  "description": "Core engine: AST parsing, concept Merkle chain, semantic dependency graph",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.25.0",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0",
+    "better-sqlite3": "^11.1.2",
+    "chokidar": "^4.0.1",
+    "glob": "^11.0.0",
+    "js-sha3": "^0.9.3",
+    "p-limit": "^6.1.0",
+    "remark-parse": "^11.0.0",
+    "simple-git": "^3.25.0",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "yaml": "^2.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.20.6",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.0",
+    "vitest": "^2.1.0"
+  }
+}

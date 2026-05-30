@@ -1,0 +1,26 @@
+{
+  "name": "@engine/mcp",
+  "version": "0.1.0",
+  "description": "MCP server — exposes engine tools to AI agents (Cursor, Claude Code, Gemini)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "engine-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@engine/core": "*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "tsup": "^8.3.0",
+    "@types/node": "^22.0.0"
+  }
+}

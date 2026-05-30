@@ -1,0 +1,4 @@
+# Engine graph database (local only)
+graph.db
+graph.db-shm
+graph.db-wal

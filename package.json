@@ -1,0 +1,28 @@
+{
+  "name": "engine-root",
+  "version": "0.1.0",
+  "description": "Semantic dependency engine — internal codename, rename before release",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:core": "npm run build --workspace=packages/core",
+    "build:cli": "npm run build --workspace=packages/cli",
+    "build:mcp": "npm run build --workspace=packages/mcp",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:cli": "npm run dev --workspace=packages/cli",
+    "dev:mcp": "npm run dev --workspace=packages/mcp"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "tsup": "^8.3.0",
+    "@types/node": "^22.0.0",
+    "vitest": "^2.1.0"
+  }
+}

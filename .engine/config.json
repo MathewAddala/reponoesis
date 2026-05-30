@@ -1,0 +1,36 @@
+{
+  "projectRoot": "C:\\Users\\addal\\OneDrive\\Desktop\\airevenuemachine",
+  "dbPath": "C:\\Users\\addal\\OneDrive\\Desktop\\airevenuemachine\\.engine\\graph.db",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.engine/**",
+    "**/*.min.js",
+    "**/*.map"
+  ],
+  "enabledParsers": [
+    "typescript",
+    "javascript",
+    "python",
+    "json",
+    "yaml",
+    "markdown",
+    "env",
+    "text"
+  ],
+  "ai": {
+    "primaryModel": "gemini-2.0-flash",
+    "localModel": "mistral",
+    "geminiApiKey": null,
+    "consensusRequired": false,
+    "embeddingModel": "text-embedding-004"
+  },
+  "gatekeeper": {
+    "blockOnCritical": true,
+    "blockOnHigh": false,
+    "warnOnMedium": true,
+    "maxDepth": 8
+  }
+}

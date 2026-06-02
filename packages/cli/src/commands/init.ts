@@ -243,4 +243,39 @@ function autoRegisterMCPServer(projectRoot: string) {
       // Ignore gracefully
     }
   }
+
+  // 3. Codex MCP Config (TOML)
+  const codexGlobalDir = join(home, '.codex');
+  const codexGlobalConfig = join(codexGlobalDir, 'config.toml');
+  const codexLocalDir = join(projectRoot, '.codex');
+  const codexLocalConfig = join(codexLocalDir, 'config.toml');
+
+  const tomlBlock = `\n[mcpServers.reponoesis]\ncommand = "rpn-mcp"\nargs = ["--project", "${projectRootNormalized}"]\n`;
+
+  const registerInToml = (filePath: string) => {
+    try {
+      if (existsSync(filePath)) {
+        let content = readFileSync(filePath, 'utf8');
+        if (content.includes('[mcpServers.reponoesis]')) {
+          content = content.replace(/\[mcpServers\.reponoesis\][\s\S]*?(?=\n\s*\[|$)/, `[mcpServers.reponoesis]\ncommand = "rpn-mcp"\nargs = ["--project", "${projectRootNormalized}"]\n`);
+        } else {
+          content += tomlBlock;
+        }
+        writeFileSync(filePath, content, 'utf8');
+      } else {
+        writeFileSync(filePath, tomlBlock, 'utf8');
+      }
+    } catch {}
+  };
+
+  try {
+    mkdirSync(codexLocalDir, { recursive: true });
+    registerInToml(codexLocalConfig);
+    console.log(chalk.green('  [OK] Automatically registered Reponoesis MCP server in Codex project config!'));
+
+    if (existsSync(codexGlobalDir)) {
+      registerInToml(codexGlobalConfig);
+      console.log(chalk.green('  [OK] Automatically registered Reponoesis MCP server in global Codex settings!'));
+    }
+  } catch {}
 }

@@ -41,8 +41,6 @@ program
   .command('init')
   .description('Initialize Reponoesis in this project (creates .engine/ config + git hook)')
   .option('--no-hook', 'Skip installing the pre-commit git hook')
-  .option('--gemini-key <key>', 'Gemini API key for AI concept extraction')
-  .option('--local-model <model>', 'Local Ollama model name (default: mistral)')
   .action(initCommand);
 
 program

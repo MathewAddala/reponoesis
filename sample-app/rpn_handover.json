@@ -1,10 +1,6 @@
 {
   "version": "1.0.0",
   "timestamp": "2026-06-01T17:55:09.006Z",
-  "modelContext": {
-    "primaryModel": "gemini-2.0-flash",
-    "localModel": "mistral"
-  },
   "promptMemories": [
     {
       "timestamp": "2026-06-01T17:55:09.007Z",

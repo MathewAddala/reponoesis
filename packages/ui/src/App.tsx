@@ -374,9 +374,11 @@ export default function App() {
       const fileConcepts = gData.concepts.filter((c) => c.fileId === f.id);
       const fileDLs = gData.decisionLinks ? gData.decisionLinks.filter((l) => l.fileId === f.id) : [];
       const hasSemanticViolation = gData.semanticViolations ? gData.semanticViolations.some(v => v.fileAId === f.id || v.fileBId === f.id) : false;
+      const hasSuggestion = (gData as any).suggestions ? (gData as any).suggestions.some((s: any) => s.filePath === f.path || s.filePath.replace(/\\/g, '/') === f.path.replace(/\\/g, '/')) : false;
       const isBroken = fileConcepts.some((c) => c.chainState === 'CHAIN_BROKEN' || simulatedBrokenConceptIds.has(c.id)) ||
                        fileDLs.some((l) => l.chainState === 'CHAIN_BROKEN') ||
-                       hasSemanticViolation;
+                       hasSemanticViolation ||
+                       hasSuggestion;
       const isDrift = fileConcepts.some((c) => c.chainState === 'ACKNOWLEDGED_DRIFT') ||
                       fileDLs.some((l) => l.chainState === 'ACKNOWLEDGED_DRIFT');
       node.status = isBroken ? 'CHAIN_BROKEN' : isDrift ? 'ACKNOWLEDGED_DRIFT' : 'VALID';
@@ -959,7 +961,25 @@ export default function App() {
         proposedFix: v.proposedFix,
       }));
 
-    return [...activeDriftItems, ...brokenDLItems, ...semanticViolationItems];
+    // 4. Workspace suggestions (Undocumented constant mutations)
+    const suggestionItems = ((data as any).suggestions || [])
+      .map((s: any, idx: number) => {
+        const fileLabel = s.filePath.replace(/\\/g, '/').split('/').pop() || s.filePath;
+        return {
+          conceptId: `sug:${s.filePath}:${idx}`,
+          conceptLabel: s.concept || 'undocumented_mutation',
+          filePath: fileLabel,
+          sectionText: s.reason,
+          chainState: 'DRIFT',
+          reason: `Workspace Drift: ${s.reason}`,
+          governingADRLabel: undefined,
+          driftExplanation: `${s.reason}\n\nTo document this change, run:\n${s.suggestedCommand}\n${s.bindCommand}`,
+          isSemanticViolation: true,
+          proposedFix: `${s.suggestedCommand}\n\n${s.bindCommand}`,
+        };
+      });
+
+    return [...activeDriftItems, ...brokenDLItems, ...semanticViolationItems, ...suggestionItems];
   };
 
   // ─── Code Violation Highlighter ──────────────────────────────────────────────
@@ -1614,9 +1634,11 @@ export default function App() {
                 const fileConcepts = data.concepts.filter((c) => c.fileId === file.id) || [];
                 const fileDLs = data.decisionLinks ? data.decisionLinks.filter((l) => l.fileId === file.id) : [];
                 const hasContradiction = data.semanticViolations ? data.semanticViolations.some(v => v.fileAId === file.id || v.fileBId === file.id) : false;
+                const hasSuggestion = (data as any).suggestions ? (data as any).suggestions.some((s: any) => s.filePath === file.path || s.filePath.replace(/\\/g, '/') === file.path.replace(/\\/g, '/')) : false;
                 const isFileBroken = fileConcepts.some((c) => c.chainState === 'CHAIN_BROKEN' || simulatedBrokenConceptIds.has(c.id)) ||
                                      fileDLs.some((l) => l.chainState === 'CHAIN_BROKEN') ||
-                                     hasContradiction;
+                                     hasContradiction ||
+                                     hasSuggestion;
                 return { file, isFileBroken, path: file.path.replace(/\\/g, '/') };
               });
 

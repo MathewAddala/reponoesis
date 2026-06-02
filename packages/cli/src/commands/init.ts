@@ -17,11 +17,9 @@ import type { EngineConfig, AbsPath } from '@engine/core';
 
 interface InitOptions {
   hook: boolean;
-  geminiKey?: string;
-  localModel?: string;
 }
 
-const DEFAULT_CONFIG = (projectRoot: string, geminiKey: string | null, localModel: string): EngineConfig => ({
+const DEFAULT_CONFIG = (projectRoot: string): EngineConfig => ({
   projectRoot: projectRoot as AbsPath,
   dbPath: join(projectRoot, '.engine', 'graph.db') as AbsPath,
   ignorePaths: [
@@ -34,13 +32,6 @@ const DEFAULT_CONFIG = (projectRoot: string, geminiKey: string | null, localMode
     '**/*.map',
   ],
   enabledParsers: ['typescript', 'javascript', 'python', 'json', 'yaml', 'markdown', 'env', 'text'],
-  ai: {
-    primaryModel: 'gemini-2.0-flash',
-    localModel: localModel as 'mistral' | 'llama3' | 'none',
-    geminiApiKey: geminiKey,
-    consensusRequired: false,  // single model ok if other unavailable
-    embeddingModel: 'text-embedding-004',
-  },
   gatekeeper: {
     blockOnCritical: true,
     blockOnHigh: false,
@@ -91,11 +82,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   spinner.succeed('Reponoesis directory created');
 
   // Write config
-  const config = DEFAULT_CONFIG(
-    cwd,
-    options.geminiKey ?? process.env['GEMINI_API_KEY'] ?? null,
-    options.localModel ?? 'mistral',
-  );
+  const config = DEFAULT_CONFIG(cwd);
   writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
   spinner.succeed(`Config written to ${chalk.underline('.engine/config.json')}`);
 
@@ -189,12 +176,10 @@ This prevents amnesia between agent sessions.
   console.log(chalk.dim('    3. rpn check          — run on any git diff'));
   console.log('');
 
-  if (!config.ai.geminiApiKey) {
-    console.log(chalk.cyan('  [INFO] Headless AI extraction disabled (No Gemini API key supplied).'));
-    console.log(chalk.dim('         RPN will operate locally. Your active AI Agent (Antigravity/Cursor/Claude)'));
-    console.log(chalk.dim('         will serve as the brain, capturing and binding ADR decisions programmatically.'));
-    console.log('');
-  }
+  console.log(chalk.cyan('  [INFO] Reponoesis operates 100% locally with zero external API fees.'));
+  console.log(chalk.dim('         Your active IDE AI Agent (Antigravity/Cursor/Claude) serves as the brain,'));
+  console.log(chalk.dim('         capturing and binding ADR decisions programmatically in your workspace.'));
+  console.log('');
 }
 
 function autoRegisterMCPServer(projectRoot: string) {

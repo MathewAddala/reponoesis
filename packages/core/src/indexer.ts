@@ -25,7 +25,6 @@ import type {
 } from './types/index.js';
 import { GraphDB } from './db/graph.js';
 import { parseFile } from './parser/chunker.js';
-import { extractConcepts } from './ai/extractor.js';
 import {
   hash,
   sectionHash,
@@ -190,23 +189,6 @@ export class Indexer {
     }
 
     let conceptCount = 0;
-    if (!this.config.gatekeeper.disableSemanticEdges) {
-      onProgress?.('🧠 Extracting concepts (AI consensus)...');
-      const aiLimit = pLimit(4);
-      await Promise.all(
-        valid.map((result) =>
-          aiLimit(async () => {
-            const count = await this.extractAndStoreConcepts(result);
-            conceptCount += count;
-          })
-        )
-      );
-      onProgress?.(`💡 Extracted ${conceptCount} concepts`);
-      onProgress?.('⛓️  Building semantic edges...');
-      this.buildSemanticEdges();
-    } else {
-      onProgress?.('🧠 Concept extraction and semantic analysis disabled by config.');
-    }
 
     onProgress?.('⛓️  Validating chains...');
     const brokenCount = this.validateAllChains();
@@ -293,12 +275,7 @@ export class Indexer {
     if (!this.config.gatekeeper.disableSyntacticEdges) {
       this.buildSyntacticEdges(results);
     }
-    if (!this.config.gatekeeper.disableSemanticEdges) {
-      for (const result of results) {
-        await this.extractAndStoreConcepts(result);
-      }
-      this.buildSemanticEdges();
-    }
+    // Offline AI concept extraction disabled
     const brokenChains = this.validateAllChains();
 
     return {
@@ -412,129 +389,7 @@ export class Indexer {
 
   // ─── Concept Extraction + Chain Building ──────────────────────────────────────
 
-  private async extractAndStoreConcepts(result: ParseResult): Promise<number> {
-    if (result.file.kind === 'css') return 0;
-    const isAdr = result.file.path.includes('.rpn/decisions/') || 
-                  result.file.path.includes('.rpn\\decisions\\') || 
-                  result.file.path.includes('.engine/decisions/') || 
-                  result.file.path.includes('.engine\\decisions\\');
-    if (result.file.kind === 'markdown' && !isAdr) return 0;
 
-    let count = 0;
-
-    for (const section of result.sections) {
-      const sectionEntities = result.entities.filter((e) => e.sectionId === section.id);
-      const structuralLabels = sectionEntities.map((e) => e.normalized as ConceptLabel);
-
-      const rawConcepts = await extractConcepts(
-        section.rawText,
-        structuralLabels,
-        {
-          geminiApiKey: this.config.ai.geminiApiKey,
-          localModel: this.config.ai.localModel !== 'none' ? this.config.ai.localModel : null,
-          requireConsensus: this.config.ai.consensusRequired,
-        }
-      );
-
-      const now = Date.now();
-      for (const raw of rawConcepts) {
-        const cId = makeConceptId(section.rawText, raw.label, section.fileId);
-        const secHash = section.contentHash;
-        const chainLinkHash = buildChainLink(cId, null, secHash);
-
-        const concept: Concept = {
-          id: cId,
-          label: raw.label,
-          canonical: normalizeForFingerprint(section.rawText).slice(0, 500),
-          sectionId: section.id,
-          fileId: section.fileId,
-          confidence: raw.confidence,
-          chainLink: chainLinkHash,
-          chainState: 'VALID',
-          brokenAt: null,
-          ackAt: null,
-          ackBy: null,
-          createdAt: now,
-          updatedAt: now,
-        };
-
-        this.db.upsertConcept(concept);
-        count++;
-      }
-    }
-
-    return count;
-  }
-
-  // ─── Semantic Edge Builder ────────────────────────────────────────────────────
-
-  private buildSemanticEdges(): void {
-    const allFiles = this.db.getAllFiles();
-    const labelToSections = new Map<string, Array<{ sectionId: Hash; fileId: Hash; confidence: string }>>();
-
-    for (const file of allFiles) {
-      if (file.kind === 'markdown') continue;
-      const sections = this.db.getSectionsForFile(file.id);
-      for (const section of sections) {
-        const concepts = this.db.getConceptsForSection(section.id);
-        for (const concept of concepts) {
-          const existing = labelToSections.get(concept.label) ?? [];
-          existing.push({ sectionId: section.id, fileId: file.id, confidence: concept.confidence });
-          labelToSections.set(concept.label, existing);
-        }
-      }
-    }
-
-    for (const [label, sections] of labelToSections) {
-      if (sections.length < 2) continue;
-
-      for (let i = 0; i < sections.length; i++) {
-        for (let j = i + 1; j < sections.length; j++) {
-          const a = sections[i]!;
-          const b = sections[j]!;
-          if (a.fileId === b.fileId) continue;
-
-          const confidence = (a.confidence === 'STRUCTURAL' || b.confidence === 'STRUCTURAL')
-            ? 'STRUCTURAL'
-            : (a.confidence === 'CONSENSUS' && b.confidence === 'CONSENSUS')
-              ? 'CONSENSUS'
-              : 'SINGLE_MODEL';
-
-          // Edge from A to B
-          const edgeAB: Edge = {
-            id: `${a.sectionId}:${b.sectionId}:CONCEPT_SHARED:${label}` as Hash,
-            fromId: a.sectionId,
-            toId: b.sectionId,
-            edgeType: 'CONCEPT_SHARED',
-            weight: edgeWeight('CONCEPT_SHARED', confidence as Concept['confidence']),
-            evidence: {
-              reason: `Both sections encode concept: "${label}"`,
-              symbol: label,
-              sourceAnalysis: confidence === 'STRUCTURAL' ? 'structural_entity' : 'consensus_ai',
-            },
-            createdAt: Date.now(),
-          };
-          this.db.insertEdge(edgeAB);
-
-          // Edge from B to A (symmetric)
-          const edgeBA: Edge = {
-            id: `${b.sectionId}:${a.sectionId}:CONCEPT_SHARED:${label}` as Hash,
-            fromId: b.sectionId,
-            toId: a.sectionId,
-            edgeType: 'CONCEPT_SHARED',
-            weight: edgeWeight('CONCEPT_SHARED', confidence as Concept['confidence']),
-            evidence: {
-              reason: `Both sections encode concept: "${label}"`,
-              symbol: label,
-              sourceAnalysis: confidence === 'STRUCTURAL' ? 'structural_entity' : 'consensus_ai',
-            },
-            createdAt: Date.now(),
-          };
-          this.db.insertEdge(edgeBA);
-        }
-      }
-    }
-  }
 
   // ─── Chain Validation ─────────────────────────────────────────────────────────
 

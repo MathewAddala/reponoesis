@@ -94,10 +94,6 @@ export async function packCommand(options: PackOptions): Promise<void> {
   const packet: HandoverPacket = {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-    modelContext: {
-      primaryModel: config.ai.primaryModel || 'none',
-      localModel: config.ai.localModel || 'none',
-    },
     promptMemories: promptMemories.length > 0 ? promptMemories : [
       {
         timestamp: new Date().toISOString(),

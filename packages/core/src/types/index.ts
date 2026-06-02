@@ -268,13 +268,6 @@ export interface EngineConfig {
   dbPath: AbsPath;           // default: .engine/graph.db
   ignorePaths: string[];     // glob patterns
   enabledParsers: FileKind[];
-  ai: {
-    primaryModel: 'gemini-2.0-flash' | 'gemini-1.5-flash' | 'none';
-    localModel: 'mistral' | 'llama3' | 'none';   // via Ollama
-    geminiApiKey: string | null;
-    consensusRequired: boolean;  // require 2-model agreement
-    embeddingModel: 'text-embedding-004' | 'none';
-  };
   gatekeeper: {
     blockOnCritical: boolean;
     blockOnHigh: boolean;
@@ -319,10 +312,6 @@ export interface DecisionLink {
 export interface HandoverPacket {
   version: string;        // Reponoesis version e.g. "1.0.0"
   timestamp: string;      // ISO string
-  modelContext: {
-    primaryModel: string;
-    localModel: string;
-  };
   promptMemories: Array<{
     timestamp: string;
     summary: string;

@@ -3,7 +3,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { resolve, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
-import { GraphDB } from '@engine/core';
+import { GraphDB, Indexer } from '@engine/core';
 import { loadConfig } from '../config.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -87,7 +87,7 @@ export async function uiCommand(options: UICommandOptions) {
   };
 
   // 4. Create local HTTP server
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${host}:${port}`);
     const pathname = url.pathname;
 
@@ -189,6 +189,15 @@ export async function uiCommand(options: UICommandOptions) {
             };
           }),
           semanticViolations,
+          suggestions: await (async () => {
+            try {
+              const filePaths = files.map((f: any) => f.path);
+              const indexer = new Indexer(config);
+              return await indexer.getSuggestionsForFiles(filePaths);
+            } catch (err) {
+              return [];
+            }
+          })(),
         };
 
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });

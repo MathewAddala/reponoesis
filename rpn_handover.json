@@ -1,13 +1,9 @@
 {
   "version": "1.0.0",
-  "timestamp": "2026-06-01T08:43:40.332Z",
-  "modelContext": {
-    "primaryModel": "gemini-2.0-flash",
-    "localModel": "llama3.2"
-  },
+  "timestamp": "2026-06-02T10:53:18.376Z",
   "promptMemories": [
     {
-      "timestamp": "2026-06-01T08:43:40.333Z",
+      "timestamp": "2026-06-02T10:53:18.377Z",
       "summary": "Baseline session handover — all architectural systems healthy.",
       "constraints": []
     }
@@ -16,20 +12,39 @@
     {
       "id": "3979ee46aec43f58af517ffca1c607bd402501cc64271427c4fc54c097b6e3fb",
       "label": "use_sqlite_wal",
-      "title": "Use use sqlite wal",
+      "title": "ADR-001: Local SQLite with Write-Ahead Logging (WAL) for High-Concurrently Scanned Graph Traces",
       "status": "ACCEPTED",
-      "body": "# Use use sqlite wal\n\n## Context\nProvide background context on the problem, constraints, and technologies considered (e.g. why we chose GCP over AWS, or WAL mode over client-server DBs).\n\n## Alternatives Considered\n1. **[Alternative 1]**: Pros/Cons\n2. **[Alternative 2]**: Pros/Cons\n\n## Consequences\nDetail what this decision means for the codebase and team workflow (positive/negative trade-offs).\n",
+      "body": "# ADR-001: Local SQLite with Write-Ahead Logging (WAL) for High-Concurrently Scanned Graph Traces\n\n## Context\nAI agent operations scan and execute millions of AST syntactic modifications concurrently. Introducing a traditional client-server database (e.g. PostgreSQL or MySQL) adds significant network latency, configuration overhead for vibe-coders, and single-point failure vectors. SQLite runs in-process, minimizing latency. However, default rollback journal mode blocks concurrent read-write transactions, which halts multi-threaded agent scans. We chose SQLite with WAL mode because it allows multiple background readers to run concurrently with a single writer, matching the architecture design of high-performance developer workspaces.\n\n## Alternatives Considered\n1. **Alternative 1: PostgreSQL**: Excellent robustness but requires complex docker-compose setups. High network serialization costs (~8-12ms roundtrip) for fine-grained Merkle graph nodes traversal queries.\n2. **Alternative 2: Default SQLite Rollback Journal**: Simple but blocks all read actions during write commits, throwing `SQLITE_BUSY` errors during concurrent ast parsing runs.\n\n## Consequences\n* **Positive Trade-offs**: Zero network latency, instant startup, zero setup configuration for vibe-coders, and parallel read transactions during active scans.\n* **Negative Trade-offs**: Requires persistent disk coordination, and WAL files must be manually checkpointed before packing state packets to prevent context drift during knowledge handovers.\n",
       "createdAt": 1780302860975.4507,
-      "updatedAt": 1780302860976.4536
+      "updatedAt": 1780305853768.1292
     }
   ],
-  "links": [
-    {
-      "decisionLabel": "use_sqlite_wal",
-      "filePath": "sample-app\\src\\api\\billing.ts",
-      "lineStart": 1,
-      "lineEnd": 38,
-      "chainState": "CHAIN_BROKEN"
-    }
-  ]
+  "links": [],
+  "agent_briefing": {
+    "how_to_start": "Call rpn_get_context() first for the live version of this briefing. Then rpn_impact_map() before editing, rpn_validate() after.",
+    "active_decisions": [
+      {
+        "label": "use_sqlite_wal",
+        "title": "ADR-001: Local SQLite with Write-Ahead Logging (WAL) for High-Concurrently Scanned Graph Traces",
+        "status": "ACCEPTED",
+        "why_summary": "AI agent operations scan and execute millions of AST syntactic modifications concurrently. Introducing a traditional client-server database (e.g. PostgreSQL or MySQL) adds significant network latency, configuration overhead for vibe-coders, and single-point failure vectors. SQLite runs in-process, minimizing latency. However, default rollback journal mode blocks concurrent read-write transactions, which halts multi-threaded agent scans. We chose SQLite with WAL mode because it allows multiple background readers to run concurrently with a single writer, matching the architecture design of high-performance developer workspaces. 1. **Alternative 1: PostgreSQL**: Excellent robustness but requires complex docker-compose setups. High network serialization costs (~8-12ms roundtrip) for fine-grained Merkle graph nodes traversal queries. 2. **Alternative 2: Default SQLite Rollback Journal**: Simple but blocks all read actions during write commits, throwing `SQLITE_BUSY` errors during concurrent ast parsing runs.",
+        "bound_files": []
+      }
+    ],
+    "concept_map_summary": {},
+    "chain_health": {
+      "total_files": 71,
+      "total_concepts": 0,
+      "broken_chains": 0
+    },
+    "mcp_tools": [
+      "rpn_get_context — load project context at session start",
+      "rpn_impact_map — blast radius BEFORE editing",
+      "rpn_validate — chain check AFTER editing",
+      "rpn_record_concept — write your semantic understanding into the graph",
+      "rpn_record_decision — create ADR + auto-bind (WHY something was done)",
+      "rpn_query — search where a concept lives",
+      "rpn_acknowledge — mark drift as intentional"
+    ]
+  }
 }

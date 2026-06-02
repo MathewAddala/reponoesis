@@ -22,7 +22,6 @@ describe('Indexer - Code Constant Mutation Detection', () => {
       dbPath: join(testDir, '.engine', 'graph.db'),
       ignorePaths: [],
       enabledParsers: ['text'],
-      ai: { primaryModel: 'none', localModel: 'none' },
       gatekeeper: { maxDepth: 8 }
     }));
 
@@ -41,7 +40,6 @@ describe('Indexer - Code Constant Mutation Detection', () => {
       dbPath: join(testDir, '.engine', 'graph.db') as any,
       ignorePaths: [],
       enabledParsers: ['text'] as any,
-      ai: { primaryModel: 'none', localModel: 'none' } as any,
       gatekeeper: { maxDepth: 8 } as any
     };
 

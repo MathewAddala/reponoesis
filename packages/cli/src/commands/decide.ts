@@ -67,58 +67,10 @@ export async function decideCommand(label: string, options: DecideOptions): Prom
   }
 
   let docBody = options.body ? options.body : '';
-  let aiDraft = '';
 
+  // Use the programmatic body directly if provided, or fallback to the static skeleton
   if (!docBody) {
-    console.log(chalk.dim('\n[AI] Formulating markdown ADR template...'));
-    // Local AI Assistance: query Ollama if active
-  if (config.ai.localModel && config.ai.localModel !== 'none') {
-    try {
-      console.log(chalk.yellow(`[AI] Consulting local Ollama model (${config.ai.localModel}) for design tradeoffs...`));
-      
-      const prompt = `You are an expert software architect helping a developer write an Architecture Decision Record (ADR).
-The decision label is: "${label}"
-The decision title is: "${title}"
-
-Analyze this decision topic and return a raw Markdown text draft containing exactly three sections:
-## Context
-(Detail what problem this solves, what constraints exist in software architecture, and AWS vs GCP or specific tool options)
-
-## Alternatives Considered
-(List 2-3 logical alternative approaches, their pros and cons)
-
-## Consequences
-(What are the positive and negative consequences of accepting this decision?)
-
-Return ONLY raw markdown copy without any other introductory or concluding conversational prose.`;
-
-      const res = await fetch('http://localhost:11434/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: config.ai.localModel,
-          prompt,
-          stream: false,
-          options: { temperature: 0.2 },
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (res.ok) {
-        const data = await res.json() as { response?: string };
-        aiDraft = data.response || '';
-        console.log(chalk.green('[OK] AI successfully generated trade-off and alternatives draft!'));
-      }
-    } catch {
-      // Gracefully ignore AI generation errors, fallback to static skeleton
-    }
-  }
-
-  }
-
-  // Use the programmatic body directly if provided, or fallback to the AI/Static skeleton
-  if (!docBody) {
-    docBody = aiDraft || `# ${title}
+    docBody = `# ${title}
 
 ## Context
 Provide background context on the problem, constraints, and technologies considered (e.g. why we chose GCP over AWS, or WAL mode over client-server DBs).

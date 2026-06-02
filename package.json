@@ -14,7 +14,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "dev:cli": "npm run dev --workspace=packages/cli",
-    "dev:mcp": "npm run dev --workspace=packages/mcp"
+    "dev:mcp": "npm run dev --workspace=packages/mcp",
+    "pack": "node pack.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

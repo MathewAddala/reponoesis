@@ -1,0 +1,15 @@
+{
+  "api": {
+    "port": 8080,
+    "environment": "production"
+  },
+  "billing": {
+    "freePlanLimit": 5,
+    "proPlanPrice": 29,
+    "googleAnalyticsId": "UA-123456789-1"
+  },
+  "auth": {
+    "tokenExpiryHours": 24,
+    "mfaRequired": false
+  }
+}

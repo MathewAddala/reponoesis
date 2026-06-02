@@ -8,7 +8,10 @@
     "**/build/**",
     "**/.engine/**",
     "**/*.min.js",
-    "**/*.map"
+    "**/*.map",
+    "**/package-lock.json",
+    "**/pnpm-lock.yaml",
+    "**/yarn.lock"
   ],
   "enabledParsers": [
     "typescript",
@@ -22,7 +25,7 @@
   ],
   "ai": {
     "primaryModel": "gemini-2.0-flash",
-    "localModel": "mistral",
+    "localModel": "llama3.2",
     "geminiApiKey": null,
     "consensusRequired": false,
     "embeddingModel": "text-embedding-004"

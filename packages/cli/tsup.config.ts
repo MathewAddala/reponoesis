@@ -7,5 +7,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   splitting: false,
-  external: ['@engine/core', 'better-sqlite3'],
+  external: ['better-sqlite3'],
+  noExternal: ['@engine/core'],
 });

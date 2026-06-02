@@ -1,0 +1,137 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-06-01T17:55:09.006Z",
+  "modelContext": {
+    "primaryModel": "gemini-2.0-flash",
+    "localModel": "mistral"
+  },
+  "promptMemories": [
+    {
+      "timestamp": "2026-06-01T17:55:09.007Z",
+      "summary": "Baseline session handover — all architectural systems healthy.",
+      "constraints": []
+    }
+  ],
+  "decisions": [
+    {
+      "id": "9a3a6adbdf6feed7f9d62e07a87e7a09c67a8717f604af3275eb3cdb393c14e3",
+      "label": "free_plan_limit",
+      "title": "Free plan capped at 5 projects",
+      "status": "ACCEPTED",
+      "body": "# Free plan capped at 5 projects\n\nThe free tier allows a maximum of 5 projects per user. This value is defined as FREE_PLAN_LIMIT in billing.ts, referenced in PRICING.md, settings.json (freePlanLimit), and the welcome email. All must stay in sync. NOTE: billing.ts currently has FREE_PLAN_LIMIT = 10 which CONTRADICTS the docs — this is intentional drift to demonstrate Reponoesis detection.",
+      "createdAt": 1780335629498,
+      "updatedAt": 1780335629511.7664
+    },
+    {
+      "id": "768dfbe16247fdee534179145b9ad2d0c1ddeaff8a4fe310b8103450af0dc96e",
+      "label": "pro_plan_price",
+      "title": "Use pro plan price",
+      "status": "ACCEPTED",
+      "body": "The Pro plan costs /month. Defined as PRO_PLAN_PRICE in billing.ts. Must stay consistent across PRICING.md, settings.json, welcome_email, and store listing.",
+      "createdAt": 1780335650867,
+      "updatedAt": 1780335650867.6912
+    }
+  ],
+  "links": [
+    {
+      "decisionLabel": "free_plan_limit",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/src/api/billing.ts",
+      "lineStart": 1,
+      "lineEnd": 36,
+      "chainState": "CHAIN_BROKEN"
+    },
+    {
+      "decisionLabel": "free_plan_limit",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/PRICING.md",
+      "lineStart": 1,
+      "lineEnd": 17,
+      "chainState": "VALID"
+    },
+    {
+      "decisionLabel": "free_plan_limit",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/config/settings.json",
+      "lineStart": 1,
+      "lineEnd": 16,
+      "chainState": "VALID"
+    },
+    {
+      "decisionLabel": "free_plan_limit",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/STORE_LISTING.md",
+      "lineStart": 1,
+      "lineEnd": 20,
+      "chainState": "VALID"
+    },
+    {
+      "decisionLabel": "pro_plan_price",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/src/api/billing.ts",
+      "lineStart": 1,
+      "lineEnd": 36,
+      "chainState": "CHAIN_BROKEN"
+    },
+    {
+      "decisionLabel": "pro_plan_price",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/PRICING.md",
+      "lineStart": 1,
+      "lineEnd": 17,
+      "chainState": "VALID"
+    },
+    {
+      "decisionLabel": "pro_plan_price",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/welcome_email.html",
+      "lineStart": 1,
+      "lineEnd": 20,
+      "chainState": "VALID"
+    },
+    {
+      "decisionLabel": "pro_plan_price",
+      "filePath": "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/config/settings.json",
+      "lineStart": 1,
+      "lineEnd": 16,
+      "chainState": "VALID"
+    }
+  ],
+  "agent_briefing": {
+    "how_to_start": "Call rpn_get_context() first for the live version of this briefing. Then rpn_impact_map() before editing, rpn_validate() after.",
+    "active_decisions": [
+      {
+        "label": "free_plan_limit",
+        "title": "Free plan capped at 5 projects",
+        "status": "ACCEPTED",
+        "why_summary": "The free tier allows a maximum of 5 projects per user. This value is defined as FREE_PLAN_LIMIT in billing.ts, referenced in PRICING.md, settings.json (freePlanLimit), and the welcome email. All must stay in sync. NOTE: billing.ts currently has FREE_PLAN_LIMIT = 10 which CONTRADICTS the docs — this is intentional drift to demonstrate Reponoesis detection.",
+        "bound_files": [
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/STORE_LISTING.md",
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/src/api/billing.ts",
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/config/settings.json",
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/PRICING.md"
+        ]
+      },
+      {
+        "label": "pro_plan_price",
+        "title": "Use pro plan price",
+        "status": "ACCEPTED",
+        "why_summary": "The Pro plan costs /month. Defined as PRO_PLAN_PRICE in billing.ts. Must stay consistent across PRICING.md, settings.json, welcome_email, and store listing.",
+        "bound_files": [
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/welcome_email.html",
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/src/api/billing.ts",
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/config/settings.json",
+          "C:/Users/addal/OneDrive/Desktop/airevenuemachine/sample-app/docs/PRICING.md"
+        ]
+      }
+    ],
+    "concept_map_summary": {},
+    "chain_health": {
+      "total_files": 18,
+      "total_concepts": 8,
+      "broken_chains": 2
+    },
+    "mcp_tools": [
+      "rpn_get_context — load project context at session start",
+      "rpn_impact_map — blast radius BEFORE editing",
+      "rpn_validate — chain check AFTER editing",
+      "rpn_record_concept — write your semantic understanding into the graph",
+      "rpn_record_decision — create ADR + auto-bind (WHY something was done)",
+      "rpn_query — search where a concept lives",
+      "rpn_acknowledge — mark drift as intentional"
+    ]
+  }
+}

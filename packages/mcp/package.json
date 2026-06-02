@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "engine-mcp": "./dist/index.js"
+    "rpn-mcp": "./dist/index.js"
   },
   "scripts": {
     "build": "tsup",

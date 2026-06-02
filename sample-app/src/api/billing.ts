@@ -2,11 +2,11 @@
  * Billing service — handles Pro Plan upgrades and free tier limits
  *
  * FREE_PLAN_LIMIT = 5 projects
- * PRO_PLAN_PRICE = $29/month
- * Google Analytics is used for conversion tracking
+ * PRO_PLAN_PRICE = 29
+ * GOOGLE_ANALYTICS_ID = UA-123456789-1
  */
 
-const FREE_PLAN_LIMIT = 10;
+const FREE_PLAN_LIMIT = 3;
 const PRO_PLAN_PRICE = 49;
 const GOOGLE_ANALYTICS_ID = 'UA-123456789-1';
 
@@ -20,14 +20,12 @@ export function checkPlanLimit(userId: string, projectCount: number): boolean {
 }
 
 export function upgradeToPro(userId: string): { success: boolean; price: number } {
-  // Charge user $29/month for Pro Plan
   console.log(`Upgrading user ${userId} to Pro Plan at $${PRO_PLAN_PRICE}/month`);
   trackEvent('pro_upgrade', { userId, price: PRO_PLAN_PRICE });
   return { success: true, price: PRO_PLAN_PRICE };
 }
 
 function trackEvent(event: string, data: Record<string, unknown>): void {
-  // Send event to Google Analytics
   console.log(`[GA ${GOOGLE_ANALYTICS_ID}] ${event}`, data);
 }
 

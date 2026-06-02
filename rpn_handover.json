@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-06-01T08:43:40.332Z",
+  "modelContext": {
+    "primaryModel": "gemini-2.0-flash",
+    "localModel": "llama3.2"
+  },
+  "promptMemories": [
+    {
+      "timestamp": "2026-06-01T08:43:40.333Z",
+      "summary": "Baseline session handover — all architectural systems healthy.",
+      "constraints": []
+    }
+  ],
+  "decisions": [
+    {
+      "id": "3979ee46aec43f58af517ffca1c607bd402501cc64271427c4fc54c097b6e3fb",
+      "label": "use_sqlite_wal",
+      "title": "Use use sqlite wal",
+      "status": "ACCEPTED",
+      "body": "# Use use sqlite wal\n\n## Context\nProvide background context on the problem, constraints, and technologies considered (e.g. why we chose GCP over AWS, or WAL mode over client-server DBs).\n\n## Alternatives Considered\n1. **[Alternative 1]**: Pros/Cons\n2. **[Alternative 2]**: Pros/Cons\n\n## Consequences\nDetail what this decision means for the codebase and team workflow (positive/negative trade-offs).\n",
+      "createdAt": 1780302860975.4507,
+      "updatedAt": 1780302860976.4536
+    }
+  ],
+  "links": [
+    {
+      "decisionLabel": "use_sqlite_wal",
+      "filePath": "sample-app\\src\\api\\billing.ts",
+      "lineStart": 1,
+      "lineEnd": 38,
+      "chainState": "CHAIN_BROKEN"
+    }
+  ]
+}

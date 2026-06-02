@@ -11,7 +11,7 @@ export async function queryCommand(concept: string): Promise<void> {
   const cwd = process.cwd();
 
   if (!existsSync(resolve(cwd, '.engine', 'config.json'))) {
-    console.error(chalk.red('❌ Engine not initialized. Run: engine init'));
+    console.error(chalk.red('[ERROR] Reponoesis not initialized. Run: rpn init'));
     process.exit(1);
   }
 
@@ -21,10 +21,10 @@ export async function queryCommand(concept: string): Promise<void> {
   indexer.close();
 
   console.log('');
-  console.log(chalk.bold.cyan(`⛓️  Concept: "${concept}"`));
+  console.log(chalk.bold.cyan(`[RPN] Concept: "${concept}"`));
 
   if (locations.length === 0) {
-    console.log(chalk.dim(`  No locations found. Try: engine scan first.`));
+    console.log(chalk.dim(`  No locations found. Try: rpn scan first.`));
     console.log('');
     return;
   }
@@ -34,7 +34,7 @@ export async function queryCommand(concept: string): Promise<void> {
   for (const loc of locations) {
     const rel = loc.filePath.replace(cwd + '/', '');
     const stateColor = loc.chainState === 'VALID' ? chalk.green : loc.chainState === 'CHAIN_BROKEN' ? chalk.red : chalk.yellow;
-    const stateIcon = loc.chainState === 'VALID' ? '✓' : loc.chainState === 'CHAIN_BROKEN' ? '✗' : '~';
+    const stateIcon = loc.chainState === 'VALID' ? '[OK]' : loc.chainState === 'CHAIN_BROKEN' ? '[DRIFT]' : '[ACK]';
 
     console.log(`  ${stateColor(stateIcon)} ${chalk.underline(rel)}${chalk.dim(`:${loc.lineStart}-${loc.lineEnd}`)}`);
     console.log(`    ${chalk.dim(`Chain: ${loc.chainState} | Confidence: ${loc.confidence}`)}`);

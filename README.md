@@ -1,100 +1,174 @@
-# Semantic Dependency Engine [CODENAME — name TBD]
+# Reponoesis (rpn)
 
-> **Deterministic semantic dependency tracking for AI-native codebases.**
-> When an AI agent changes one file, this engine tells you — with cryptographic certainty — what else needs to change.
+> **Semantic dependency tracking for AI-native codebases — powered by the agent's own brain.**
+> When an AI agent changes one file, Reponoesis tells you — with cryptographic certainty — what else needs reviewing, and preserves the WHY for every architectural decision.
 
 ---
 
 ## The Problem
 
-AI agents are excellent at editing individual files. They fail at cross-file semantic consistency.
-
-**The pattern:**
-```
-AI turns off ads in analytics.ts
-→ Doesn't update privacy-policy.md (still mentions ads)
-→ Doesn't update STORE_LISTING.md (still mentions personalized ads)  
-→ Doesn't update CookieBanner.tsx (still shows consent for ads that don't run)
-```
-
-This is not a bug. It's a structural gap — no tool tracks *semantic* dependencies across file types.
-
-## What We Built
-
-A **Concept Merkle Chain** — a cryptographic graph of semantic dependencies across your entire project.
-
-Every concept (`ad_tracking`, `free_plan_limit`, `gdpr_consent`) gets fingerprinted with SHA3-256.
-When a file changes, the chain link invalidates **deterministically** — no threshold, no fuzzy "maybe".
-
-### How it works
+AI agents edit individual files brilliantly. They fail at cross-file semantic consistency.
 
 ```
-File A changes → sectionHash(A) changes
-                → ChainLink(A) = SHA3-256(conceptId | parentLink | sectionHash) changes
-                → All downstream ChainLinks that depend on A are now BROKEN
-                → Engine reports: CHAIN_BROKEN at privacy-policy.md:L142-L189
+Agent changes billing from $50 → $10 in pricing.tsx
+→ Doesn't update terms/page.tsx       (still says "$50/month")
+→ Doesn't update STORE_LISTING.md     (still says "flat $50 fee")
+→ Doesn't update HomeClient.tsx       (still shows the old price in the hero)
+→ Next agent opens the project → has zero context on WHY $10 was chosen
 ```
 
-This is deterministic. Either the hash matches or it doesn't.
+This is not a bug. It's a structural gap — no tool tracks *semantic* dependencies across file types, and no tool preserves the WHY of architectural decisions for future agents.
+
+## What Reponoesis Does
+
+**1. Agent-Brain Extraction** — The AI agent (Cursor/Claude/Gemini) reads code and writes its semantic understanding back into a Merkle-anchored graph via MCP tools. No static algorithms. No regex keyword lists. The agent's intelligence IS the extractor.
+
+**2. Concept Merkle Chain** — Every concept (`billing_model`, `auth_strategy`, `gdpr_consent`) gets SHA3-256 fingerprinted. When a file changes, the chain link invalidates deterministically — no fuzzy "maybe."
+
+**3. Repo Remembrance** — ADRs (Architecture Decision Records) with full WHY rationale are stored and surfaced to new agent sessions via `rpn_get_context`. No more agent amnesia on "why did we choose X?"
+
+---
 
 ## Architecture
 
 ```
 packages/
-  core/    — AST parser, structural entity extractor, SQLite graph, Merkle chain
-  cli/     — engine init | scan | check | review | status | query
-  mcp/     — MCP server for Cursor/Claude Code/Gemini (4 tools)
-  ui/      — Circuit board visualization (coming Week 9)
+  core/    — SQLite graph, SHA3 Merkle chain, concept indexer, agent write-back API
+  cli/     — rpn init | scan | check | decide | bind | why | pack | status | query
+  mcp/     — MCP server for Cursor/Claude Code/Gemini (7 rpn_* tools)
+  ui/      — Visual graph explorer
 ```
 
-## Usage
+---
+
+## Install (from git)
+
+**Prerequisites:** Node.js 18+ and git
 
 ```bash
-# Initialize in your project
-npx engine init --gemini-key YOUR_KEY
+# 1. Clone the repo
+git clone https://github.com/your-org/reponoesis.git
+cd reponoesis
 
-# Full index
-engine scan
+# 2. Install dependencies & build
+npm install
+npm run build
 
-# Check before commit (also runs automatically via pre-commit hook)
-engine check
+# 3. Link CLI globally (so rpn command works anywhere)
+cd packages/cli
+npm link
+cd ../..
 
-# Interactive review of broken chains
-engine review
+# 4. Link MCP server globally
+cd packages/mcp
+npm link
+cd ../..
 
-# Find where a concept lives
-engine query "ad_tracking"
-
-# Show health dashboard
-engine status
+# 5. Verify
+rpn --version
+rpn-mcp --help
 ```
+
+---
+
+## Quick Start (in your project)
+
+```bash
+# 1. Go into your project
+cd /path/to/your/project
+
+# 2. Initialize Reponoesis
+rpn init
+
+# 3. Index your project
+rpn scan
+
+# 4. Check chain health
+rpn status
+```
+
+---
 
 ## MCP Integration (AI Agents)
 
-Add to your Cursor/Claude Code config:
+Add to your Cursor / Claude Code / Gemini mcp config:
+
 ```json
 {
-  "engine": {
-    "command": "engine-mcp",
-    "args": ["--project", "/path/to/your/project"]
+  "rpn": {
+    "command": "rpn-mcp",
+    "args": ["--project", "/absolute/path/to/your/project"]
   }
 }
 ```
 
-AI agents get 4 tools:
-- `engine_impact_map` — call BEFORE changes
-- `engine_validate` — call AFTER changes  
-- `engine_query` — find concept locations
-- `engine_acknowledge` — mark intentional drift
+Your AI agent now has 7 tools:
 
-## Packages
-
-| Package | Description |
-|---|---|
-| `@engine/core` | AST parsing, SHA3 fingerprinting, SQLite graph, chain validation |
-| `@engine/cli` | CLI tool (`engine` command) |
-| `@engine/mcp` | MCP server for AI agent integration |
+| Tool | When | What |
+|------|------|------|
+| `rpn_get_context` | **Session start** | Load full project context: decisions, WHY rationale, concept map |
+| `rpn_impact_map` | **Before editing** | What will break if I change these files? |
+| `rpn_validate` | **After editing** | Are all chains intact? |
+| `rpn_record_concept` | **Agent identified meaning** | Write semantic understanding into the graph |
+| `rpn_record_decision` | **Agent knows the WHY** | Create ADR + auto-bind files in one call |
+| `rpn_query` | **Search** | Where does concept X live across the codebase? |
+| `rpn_acknowledge` | **Intentional change** | Mark drift as deliberate |
 
 ---
 
-*Name TBD — will rename @engine/* to final product name before launch.*
+## CLI Commands
+
+```bash
+rpn init                          # Initialize in current project
+rpn scan                          # Full index
+rpn check                         # Run before commit (also auto-runs via pre-commit hook)
+rpn status                        # Chain health dashboard
+rpn query "billing_model"         # Find all locations of a concept
+
+# Architecture Decisions (ADRs)
+rpn decide billing_v2 \
+  --title "Change flat fee from $50 to $10" \
+  --status ACCEPTED \
+  --body "Chose $10 to match competitor pricing after A/B test..." \
+  --files src/pricing.tsx,src/terms/page.tsx   # ← auto-binds, no separate rpn bind needed
+
+rpn why src/pricing.tsx            # Explain why a file is the way it is
+rpn pack                           # Export handover JSON for next agent session
+```
+
+---
+
+## How the Agent Brain Works
+
+```
+Developer changes billing in pricing.tsx
+         ↓
+Cursor AI / Claude sees the diff (already reading the file)
+         ↓
+Agent calls: rpn_validate({ changed_files: ["abs/path/pricing.tsx"] })
+  → Reponoesis re-indexes, returns: "billing_model concept affected, 3 files share it"
+         ↓
+Agent uses ITS OWN intelligence to understand:
+  "This is a pricing change that affects terms and HomeClient"
+         ↓
+Agent calls: rpn_record_decision({
+  label: "billing_v2",
+  title: "Change fee from $50 to $10",
+  body: "..agent's own WHY reasoning..",
+  files: ["pricing.tsx", "terms/page.tsx", "HomeClient.tsx"]  ← auto-binds all
+})
+         ↓
+Reponoesis: ADR created, all 3 files Merkle-anchored → status: CLEAN ✓
+         ↓
+New agent opens project → calls rpn_get_context() → immediately knows why $10
+```
+
+---
+
+## Packages
+
+| Package | npm name | Description |
+|---------|----------|-------------|
+| `@engine/core` | (internal) | SQLite graph, SHA3 fingerprinting, Merkle chain, agent write-back API |
+| `@engine/cli` | (publish as `rpn`) | CLI tool — `rpn` command |
+| `@engine/mcp` | (publish as `rpn-mcp`) | MCP server — 7 `rpn_*` tools for AI agents |

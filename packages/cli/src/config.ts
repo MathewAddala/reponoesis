@@ -10,7 +10,7 @@ export function loadConfig(cwd: string): EngineConfig {
   const configPath = resolve(cwd, '.engine', 'config.json');
 
   if (!existsSync(configPath)) {
-    throw new Error(`Config not found at ${configPath}. Run: engine init`);
+    throw new Error(`Config not found at ${configPath}. Run: rpn init`);
   }
 
   try {

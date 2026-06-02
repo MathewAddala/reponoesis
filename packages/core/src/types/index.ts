@@ -280,6 +280,8 @@ export interface EngineConfig {
     blockOnHigh: boolean;
     warnOnMedium: boolean;
     maxDepth: number;        // max graph traversal depth
+    disableSyntacticEdges?: boolean;
+    disableSemanticEdges?: boolean;
   };
 }
 
@@ -291,3 +293,81 @@ export interface ParseResult {
   facts: SyntacticFact[];
   entities: StructuralEntity[];
 }
+
+// ─── Decisions & Rationale (Reponoesis ADRs) ───────────────────────────────────
+
+export type DecisionStatus = 'PROPOSED' | 'ACCEPTED' | 'SUPERSEDED' | 'DEPRECATED';
+
+export interface DecisionRecord {
+  id: Hash;               // SHA3-256(label)
+  label: string;          // e.g., "wal_mode_sqlite"
+  title: string;          // human-readable description
+  status: DecisionStatus;
+  body: string;           // markdown rationale content
+  createdAt: number;      // timestamp unix ms
+  updatedAt: number;      // timestamp unix ms
+}
+
+export interface DecisionLink {
+  decisionId: Hash;
+  sectionId: Hash;
+  fileId: Hash;
+  chainLink: Hash;
+  chainState: ChainState;
+}
+
+export interface HandoverPacket {
+  version: string;        // Reponoesis version e.g. "1.0.0"
+  timestamp: string;      // ISO string
+  modelContext: {
+    primaryModel: string;
+    localModel: string;
+  };
+  promptMemories: Array<{
+    timestamp: string;
+    summary: string;
+    constraints: string[];
+  }>;
+  decisions: DecisionRecord[];
+  links: Array<{
+    decisionLabel: string;
+    filePath: string;
+    lineStart: number;
+    lineEnd: number;
+    chainState: ChainState;
+  }>;
+  /** Compact briefing for new agent sessions — call rpn_get_context() for the live version */
+  agent_briefing?: {
+    how_to_start: string;
+    active_decisions: Array<{
+      label: string;
+      title: string;
+      status: string;
+      why_summary: string;    // first 3 non-empty lines of body
+      bound_files: string[];
+    }>;
+    concept_map_summary: Record<string, number>; // label → file count
+    chain_health: {
+      total_files: number;
+      total_concepts: number;
+      broken_chains: number;
+    };
+    mcp_tools: string[];
+  };
+}
+
+// ─── Semantic Violations (AI-detected contradiction ledger) ─────────────────────
+
+export interface SemanticViolation {
+  id: Hash;
+  conceptLabel: string;
+  fileAId: Hash;
+  sectionAId: Hash;
+  fileBId: Hash;
+  sectionBId: Hash;
+  reason: string;        // Agent-provided explanation of "what caused what"
+  proposedFix: string;   // Agent-provided code snippet or guidance
+  severity: ImpactSeverity;
+  createdAt: number;
+}
+

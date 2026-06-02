@@ -13,7 +13,7 @@ export async function reviewCommand(): Promise<void> {
   const cwd = process.cwd();
 
   if (!existsSync(resolve(cwd, '.engine', 'config.json'))) {
-    console.error(chalk.red('❌ Engine not initialized. Run: engine init'));
+    console.error(chalk.red('[ERROR] Reponoesis not initialized. Run: rpn init'));
     process.exit(1);
   }
 
@@ -23,20 +23,20 @@ export async function reviewCommand(): Promise<void> {
 
   if (broken.length === 0) {
     console.log('');
-    console.log(chalk.green.bold('  ✓ No broken chains to review. All clear!'));
+    console.log(chalk.green.bold('  [OK] No broken chains to review. All clear!'));
     console.log('');
     indexer.close();
     return;
   }
 
   console.log('');
-  console.log(chalk.bold.cyan(`⛓️  Engine — Interactive Review (${broken.length} broken chain(s))`));
+  console.log(chalk.bold.cyan(`[RPN] Reponoesis — Interactive Review (${broken.length} broken chain(s))`));
   console.log('');
 
   for (const item of broken) {
     const rel = item.filePath.replace(cwd + '\\', '').replace(cwd + '/', '');
 
-    console.log(chalk.red(`  ✗ ${chalk.underline(rel)}:${item.lineStart}-${item.lineEnd}`));
+    console.log(chalk.red(`  [DRIFT] ${chalk.underline(rel)}:${item.lineStart}-${item.lineEnd}`));
     console.log(`    ${chalk.dim(`Concept: "${item.conceptLabel}"`)}`);
     console.log(`    ${chalk.dim(`Chain: ${item.chainLink.slice(0, 16) || '(pending)'}...`)}`);
     console.log(`    ${chalk.dim(`Reason: ${item.reason}`)}`);
@@ -45,18 +45,18 @@ export async function reviewCommand(): Promise<void> {
     const action = await select<'acknowledge' | 'resolve' | 'skip'>({
       message: 'What do you want to do?',
       choices: [
-        { name: '🔍 Mark as reviewed (acknowledge drift)', value: 'acknowledge' },
-        { name: '✅ Mark as resolved (I already fixed it)', value: 'resolve' },
-        { name: '⏭️  Skip for now', value: 'skip' },
+        { name: '[ACKNOWLEDGE] Mark as reviewed (acknowledge drift)', value: 'acknowledge' },
+        { name: '[RESOLVE] Mark as resolved (I already fixed it)', value: 'resolve' },
+        { name: '[SKIP] Skip for now', value: 'skip' },
       ],
     });
 
     if (action === 'acknowledge') {
       indexer.acknowledgeBrokenChain(item.conceptId, 'cli-review');
-      console.log(chalk.yellow('  ~ Marked as acknowledged drift\n'));
+      console.log(chalk.yellow('  [ACK] Marked as acknowledged drift\n'));
     } else if (action === 'resolve') {
       indexer.resolveBrokenChain(item.conceptId);
-      console.log(chalk.green('  ✓ Marked as resolved\n'));
+      console.log(chalk.green('  [OK] Marked as resolved\n'));
     } else {
       console.log(chalk.dim('  Skipped\n'));
     }

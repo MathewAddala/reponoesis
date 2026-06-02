@@ -18,7 +18,7 @@ import { dirname } from 'node:path';
 import type {
   FileRecord, Section, SyntacticFact, StructuralEntity,
   Concept, BusinessRule, RuleInstance, Edge, AuditEntry,
-  Hash, AbsPath, ChainState, EdgeType,
+  Hash, AbsPath, ChainState, EdgeType, SemanticViolation,
 } from '../types/index.js';
 
 // ─── Schema SQL ────────────────────────────────────────────────────────────────
@@ -160,6 +160,46 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(timestamp_ms);
 CREATE INDEX IF NOT EXISTS idx_audit_type ON audit_log(event_type);
+
+-- ── Decisions Ledger ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS decisions (
+  id          TEXT PRIMARY KEY,
+  label       TEXT NOT NULL UNIQUE,
+  title       TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'PROPOSED', -- PROPOSED | ACCEPTED | SUPERSEDED | DEPRECATED
+  body        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_decisions_label ON decisions(label);
+
+-- ── Decision Links (The Bridge) ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS decision_links (
+  decision_id  TEXT NOT NULL REFERENCES decisions(id) ON DELETE CASCADE,
+  section_id   TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  file_id      TEXT NOT NULL,
+  chain_link   TEXT NOT NULL,
+  chain_state  TEXT NOT NULL DEFAULT 'VALID',
+  PRIMARY KEY (decision_id, section_id)
+);
+CREATE INDEX IF NOT EXISTS idx_decision_links_state ON decision_links(chain_state);
+
+-- ── Semantic Violations (AI-detected contradiction ledger) ─────────────────────
+CREATE TABLE IF NOT EXISTS semantic_violations (
+  id               TEXT PRIMARY KEY,  -- SHA3-256(concept_label:file_a_id:file_b_id)
+  concept_label    TEXT NOT NULL,
+  file_a_id        TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  section_a_id     TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  file_b_id        TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  section_b_id     TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  reason           TEXT NOT NULL,
+  proposed_fix     TEXT NOT NULL,
+  severity         TEXT NOT NULL DEFAULT 'HIGH',
+  created_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_violations_concept ON semantic_violations(concept_label);
+CREATE INDEX IF NOT EXISTS idx_violations_file_a ON semantic_violations(file_a_id);
+CREATE INDEX IF NOT EXISTS idx_violations_file_b ON semantic_violations(file_b_id);
 `;
 
 // ─── Database Class ────────────────────────────────────────────────────────────
@@ -205,16 +245,32 @@ export class GraphDB {
     `).run(file);
   }
 
+  private mapFileRow(r: any): FileRecord {
+    return {
+      id: r.id,
+      path: r.path,
+      kind: r.kind,
+      contentHash: r.content_hash,
+      mtimeMs: r.mtime_ms,
+      indexedAt: r.indexed_at,
+      sectionCount: r.section_count,
+    };
+  }
+
   getFile(id: Hash): FileRecord | undefined {
-    return this.db.prepare('SELECT * FROM files WHERE id = ?').get(id) as FileRecord | undefined;
+    const row = this.db.prepare('SELECT * FROM files WHERE id = ?').get(id);
+    return row ? this.mapFileRow(row) : undefined;
   }
 
   getFileByPath(path: AbsPath): FileRecord | undefined {
-    return this.db.prepare('SELECT * FROM files WHERE path = ?').get(path) as FileRecord | undefined;
+    const normPath = path.replace(/\\/g, '/');
+    const row = this.db.prepare('SELECT * FROM files WHERE path = ?').get(normPath);
+    return row ? this.mapFileRow(row) : undefined;
   }
 
   getAllFiles(): FileRecord[] {
-    return this.db.prepare('SELECT * FROM files ORDER BY path').all() as FileRecord[];
+    const rows = this.db.prepare('SELECT * FROM files ORDER BY path').all();
+    return rows.map(r => this.mapFileRow(r));
   }
 
   // ─── Section Operations ───────────────────────────────────────────────────────
@@ -228,10 +284,29 @@ export class GraphDB {
     `).run(section);
   }
 
+  private mapSectionRow(r: any): Section {
+    return {
+      id: r.id,
+      fileId: r.file_id,
+      filePath: r.filePath ?? (r.file_path ?? '' as AbsPath),
+      lineStart: r.line_start,
+      lineEnd: r.line_end,
+      contentHash: r.content_hash,
+      rawText: r.raw_text,
+      kind: r.kind,
+    };
+  }
+
   getSectionsForFile(fileId: Hash): Section[] {
-    return this.db
+    const rows = this.db
       .prepare('SELECT * FROM sections WHERE file_id = ? ORDER BY line_start')
-      .all(fileId) as Section[];
+      .all(fileId);
+    return rows.map(r => this.mapSectionRow(r));
+  }
+
+  getSectionHash(sectionId: Hash): string | undefined {
+    const row = this.db.prepare('SELECT content_hash FROM sections WHERE id = ?').get(sectionId) as { content_hash: string } | undefined;
+    return row?.content_hash;
   }
 
   deleteFileData(fileId: Hash): void {
@@ -321,28 +396,50 @@ export class GraphDB {
     });
   }
 
+  private mapConceptRow(r: any): Concept {
+    return {
+      id: r.id,
+      label: r.label,
+      canonical: r.canonical,
+      sectionId: r.section_id,
+      fileId: r.file_id,
+      confidence: r.confidence,
+      chainLink: r.chain_link,
+      chainState: r.chain_state,
+      brokenAt: r.broken_at,
+      ackAt: r.ack_at,
+      ackBy: r.ack_by,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    };
+  }
+
   getConceptsForSection(sectionId: Hash): Concept[] {
-    return this.db
+    const rows = this.db
       .prepare('SELECT * FROM concepts WHERE section_id = ?')
-      .all(sectionId) as Concept[];
+      .all(sectionId);
+    return rows.map(r => this.mapConceptRow(r));
   }
 
   getConceptsByLabel(label: string): Concept[] {
-    return this.db
+    const rows = this.db
       .prepare('SELECT * FROM concepts WHERE label = ? ORDER BY file_id')
-      .all(label) as Concept[];
+      .all(label);
+    return rows.map(r => this.mapConceptRow(r));
   }
 
   getBrokenConcepts(): Concept[] {
-    return this.db
+    const rows = this.db
       .prepare("SELECT * FROM concepts WHERE chain_state = 'CHAIN_BROKEN'")
-      .all() as Concept[];
+      .all();
+    return rows.map(r => this.mapConceptRow(r));
   }
 
   getBrokenConceptsForFile(fileId: Hash): Concept[] {
-    return this.db
+    const rows = this.db
       .prepare("SELECT * FROM concepts WHERE file_id = ? AND chain_state = 'CHAIN_BROKEN'")
-      .all(fileId) as Concept[];
+      .all(fileId);
+    return rows.map(r => this.mapConceptRow(r));
   }
 
   /**
@@ -350,7 +447,7 @@ export class GraphDB {
    * Use this for CLI display and review — avoids N+1 queries.
    */
   getBrokenConceptsWithLocations(): Array<Concept & { filePath: AbsPath; lineStart: number; lineEnd: number }> {
-    return this.db.prepare(`
+    const rows = this.db.prepare(`
       SELECT
         c.*,
         f.path     AS filePath,
@@ -361,14 +458,20 @@ export class GraphDB {
       JOIN files    f ON c.file_id    = f.id
       WHERE c.chain_state = 'CHAIN_BROKEN'
       ORDER BY f.path, s.line_start
-    `).all() as Array<Concept & { filePath: AbsPath; lineStart: number; lineEnd: number }>;
+    `).all();
+    return rows.map(r => ({
+      ...this.mapConceptRow(r),
+      filePath: r.filePath,
+      lineStart: r.lineStart,
+      lineEnd: r.lineEnd,
+    }));
   }
 
   /**
    * Get broken concepts for a specific file, joined with section location.
    */
   getBrokenConceptsForFileWithLocations(fileId: Hash): Array<Concept & { filePath: AbsPath; lineStart: number; lineEnd: number }> {
-    return this.db.prepare(`
+    const rows = this.db.prepare(`
       SELECT
         c.*,
         f.path       AS filePath,
@@ -379,7 +482,13 @@ export class GraphDB {
       JOIN files    f ON c.file_id    = f.id
       WHERE c.file_id = ? AND c.chain_state = 'CHAIN_BROKEN'
       ORDER BY s.line_start
-    `).all(fileId) as Array<Concept & { filePath: AbsPath; lineStart: number; lineEnd: number }>;
+    `).all(fileId);
+    return rows.map(r => ({
+      ...this.mapConceptRow(r),
+      filePath: r.filePath,
+      lineStart: r.lineStart,
+      lineEnd: r.lineEnd,
+    }));
   }
 
   // ─── Business Rules ───────────────────────────────────────────────────────────
@@ -401,12 +510,22 @@ export class GraphDB {
   }
 
   getBrokenRuleInstances(): Array<RuleInstance & { ruleLabel: string }> {
-    return this.db.prepare(`
+    const rows = this.db.prepare(`
       SELECT ri.*, br.label as ruleLabel
       FROM rule_instances ri
       JOIN business_rules br ON ri.rule_id = br.id
       WHERE ri.chain_state = 'CHAIN_BROKEN'
-    `).all() as Array<RuleInstance & { ruleLabel: string }>;
+    `).all() as any[];
+    return rows.map(r => ({
+      ruleId: r.rule_id,
+      sectionId: r.section_id,
+      fileId: r.file_id,
+      encodedAs: r.encoded_as,
+      rawValue: r.raw_value,
+      chainLink: r.chain_link,
+      chainState: r.chain_state,
+      ruleLabel: r.ruleLabel,
+    }));
   }
 
   // ─── Edges ────────────────────────────────────────────────────────────────────
@@ -423,15 +542,31 @@ export class GraphDB {
   getEdgesFrom(sectionId: Hash): Edge[] {
     const rows = this.db
       .prepare('SELECT * FROM edges WHERE from_id = ?')
-      .all(sectionId) as Array<Omit<Edge, 'evidence'> & { evidence: string }>;
-    return rows.map(r => ({ ...r, evidence: JSON.parse(r.evidence) as Edge['evidence'] }));
+      .all(sectionId) as any[];
+    return rows.map(r => ({
+      id: r.id,
+      fromId: r.from_id,
+      toId: r.to_id,
+      edgeType: r.edge_type,
+      weight: r.weight,
+      evidence: JSON.parse(r.evidence) as Edge['evidence'],
+      createdAt: r.created_at,
+    }));
   }
 
   getEdgesTo(sectionId: Hash): Edge[] {
     const rows = this.db
       .prepare('SELECT * FROM edges WHERE to_id = ?')
-      .all(sectionId) as Array<Omit<Edge, 'evidence'> & { evidence: string }>;
-    return rows.map(r => ({ ...r, evidence: JSON.parse(r.evidence) as Edge['evidence'] }));
+      .all(sectionId) as any[];
+    return rows.map(r => ({
+      id: r.id,
+      fromId: r.from_id,
+      toId: r.to_id,
+      edgeType: r.edge_type,
+      weight: r.weight,
+      evidence: JSON.parse(r.evidence) as Edge['evidence'],
+      createdAt: r.created_at,
+    }));
   }
 
   // ─── Graph Traversal (Recursive CTE) ─────────────────────────────────────────
@@ -459,13 +594,11 @@ export class GraphDB {
     const placeholders = sectionIds.map(() => '?').join(',');
 
     const query = `
-      WITH RECURSIVE blast(section_id, depth, edge_type, path) AS (
+      WITH RECURSIVE blast(section_id, depth) AS (
         -- Base: direct neighbors of changed sections
         SELECT
           e.to_id,
-          1,
-          e.edge_type,
-          e.from_id || '->' || e.to_id
+          1
         FROM edges e
         WHERE e.from_id IN (${placeholders})
 
@@ -474,19 +607,16 @@ export class GraphDB {
         -- Recursive: neighbors of neighbors
         SELECT
           e.to_id,
-          b.depth + 1,
-          e.edge_type,
-          b.path || '->' || e.to_id
+          b.depth + 1
         FROM edges e
         JOIN blast b ON e.from_id = b.section_id
         WHERE b.depth < ?
-          AND b.path NOT LIKE '%' || e.to_id || '%'  -- cycle guard
       )
       SELECT DISTINCT
         b.section_id,
         s.file_id,
         f.path as file_path,
-        b.edge_type,
+        e.edge_type,
         MIN(b.depth) as depth,
         s.line_start,
         s.line_end,
@@ -495,25 +625,28 @@ export class GraphDB {
       FROM blast b
       JOIN sections s ON b.section_id = s.id
       JOIN files f ON s.file_id = f.id
+      LEFT JOIN edges e ON e.to_id = b.section_id
       LEFT JOIN concepts c ON c.section_id = s.id
       WHERE b.section_id NOT IN (${placeholders})
       GROUP BY b.section_id
       ORDER BY depth ASC, f.path ASC
     `;
 
-    return this.db
+    const rows = this.db
       .prepare(query)
-      .all([...sectionIds, maxDepth, ...sectionIds]) as Array<{
-        sectionId: Hash;
-        fileId: Hash;
-        filePath: AbsPath;
-        edgeType: EdgeType;
-        depth: number;
-        lineStart: number;
-        lineEnd: number;
-        kind: string;
-        chainState: ChainState;
-      }>;
+      .all([...sectionIds, maxDepth, ...sectionIds]) as any[];
+
+    return rows.map((r) => ({
+      sectionId: r.section_id,
+      fileId: r.file_id,
+      filePath: r.file_path,
+      edgeType: r.edge_type,
+      depth: r.depth,
+      lineStart: r.line_start,
+      lineEnd: r.line_end,
+      kind: r.kind,
+      chainState: r.chain_state,
+    }));
   }
 
   /**
@@ -534,6 +667,7 @@ export class GraphDB {
 
   /**
    * Get overall chain health summary for a project.
+   * Counts broken chains from BOTH concepts AND decision_links tables.
    */
   getChainHealthSummary(): {
     totalConcepts: number;
@@ -542,6 +676,7 @@ export class GraphDB {
     validChains: number;
     totalEdges: number;
     totalFiles: number;
+    decisionLinksBroken: number;
   } {
     const row = this.db.prepare(`
       SELECT
@@ -552,10 +687,32 @@ export class GraphDB {
       FROM concepts
     `).get() as { totalConcepts: number; brokenChains: number; acknowledgedDrift: number; validChains: number };
 
+    const dlRow = this.db.prepare(`
+      SELECT
+        COUNT(*) as totalDLs,
+        COALESCE(SUM(CASE WHEN chain_state = 'CHAIN_BROKEN' THEN 1 ELSE 0 END), 0) as brokenDLs,
+        COALESCE(SUM(CASE WHEN chain_state = 'ACKNOWLEDGED_DRIFT' THEN 1 ELSE 0 END), 0) as acknowledgedDLs,
+        COALESCE(SUM(CASE WHEN chain_state = 'VALID' THEN 1 ELSE 0 END), 0) as validDLs
+      FROM decision_links
+    `).get() as { totalDLs: number; brokenDLs: number; acknowledgedDLs: number; validDLs: number };
+
     const edges = this.db.prepare('SELECT COUNT(*) as n FROM edges').get() as { n: number };
     const files = this.db.prepare('SELECT COUNT(*) as n FROM files').get() as { n: number };
 
-    return { ...row, totalEdges: edges.n, totalFiles: files.n };
+    const totalConcepts = row.totalConcepts + dlRow.totalDLs;
+    const brokenChains = row.brokenChains + dlRow.brokenDLs;
+    const acknowledgedDrift = row.acknowledgedDrift + dlRow.acknowledgedDLs;
+    const validChains = row.validChains + dlRow.validDLs;
+
+    return {
+      totalConcepts,
+      brokenChains,
+      acknowledgedDrift,
+      validChains,
+      totalEdges: edges.n,
+      totalFiles: files.n,
+      decisionLinksBroken: dlRow.brokenDLs,
+    };
   }
 
   // ─── Audit Log ────────────────────────────────────────────────────────────────
@@ -574,6 +731,209 @@ export class GraphDB {
       .prepare('SELECT * FROM audit_log ORDER BY timestamp_ms DESC LIMIT ?')
       .all(limit) as AuditEntry[];
   }
+
+  // ─── Decisions & Rationale (Reponoesis ADRs) ───────────────────────────────────
+
+  upsertDecision(decision: DecisionRecord): void {
+    this.db.prepare(`
+      INSERT INTO decisions (id, label, title, status, body, created_at, updated_at)
+      VALUES (@id, @label, @title, @status, @body, @createdAt, @updatedAt)
+      ON CONFLICT(id) DO UPDATE SET
+        title      = excluded.title,
+        status     = excluded.status,
+        body       = excluded.body,
+        updated_at = excluded.updated_at
+    `).run(decision);
+  }
+
+  getDecision(idOrLabel: string): DecisionRecord | undefined {
+    const row = this.db.prepare(`
+      SELECT * FROM decisions 
+      WHERE id = ? OR label = ?
+    `).get(idOrLabel, idOrLabel);
+    return row ? {
+      id: row.id,
+      label: row.label,
+      title: row.title,
+      status: row.status,
+      body: row.body,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    } as DecisionRecord : undefined;
+  }
+
+  getAllDecisions(): DecisionRecord[] {
+    const rows = this.db.prepare('SELECT * FROM decisions ORDER BY label').all();
+    return rows.map(r => ({
+      id: r.id,
+      label: r.label,
+      title: r.title,
+      status: r.status,
+      body: r.body,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    }));
+  }
+
+  deleteDecision(idOrLabel: string): void {
+    this.db.prepare('DELETE FROM decisions WHERE id = ? OR label = ?').run(idOrLabel, idOrLabel);
+  }
+
+  // ─── Decision Links ───────────────────────────────────────────────────────────
+
+  insertDecisionLink(link: DecisionLink): void {
+    this.db.prepare(`
+      INSERT INTO decision_links (decision_id, section_id, file_id, chain_link, chain_state)
+      VALUES (@decisionId, @sectionId, @fileId, @chainLink, @chainState)
+      ON CONFLICT(decision_id, section_id) DO UPDATE SET
+        chain_link  = excluded.chain_link,
+        chain_state = excluded.chain_state
+    `).run(link);
+  }
+
+  getDecisionLinksForFile(fileId: Hash): Array<DecisionLink & { decisionLabel: string; decisionTitle: string }> {
+    const rows = this.db.prepare(`
+      SELECT dl.*, d.label as decisionLabel, d.title as decisionTitle
+      FROM decision_links dl
+      JOIN decisions d ON dl.decision_id = d.id
+      WHERE dl.file_id = ?
+    `).all(fileId) as any[];
+    return rows.map(r => ({
+      decisionId: r.decision_id,
+      sectionId: r.section_id,
+      fileId: r.file_id,
+      chainLink: r.chain_link,
+      chainState: r.chain_state,
+      decisionLabel: r.decisionLabel,
+      decisionTitle: r.decisionTitle
+    }));
+  }
+
+  getBrokenDecisionLinks(): Array<DecisionLink & { decisionLabel: string; decisionTitle: string; filePath: string; lineStart: number; lineEnd: number; decisionBody: string }> {
+    const rows = this.db.prepare(`
+      SELECT 
+        dl.*, 
+        d.label      as decisionLabel, 
+        d.title      as decisionTitle, 
+        d.body       as decisionBody,
+        f.path       as filePath,
+        s.line_start as lineStart,
+        s.line_end   as lineEnd
+      FROM decision_links dl
+      JOIN decisions d ON dl.decision_id = d.id
+      JOIN sections s ON dl.section_id = s.id
+      JOIN files f ON dl.file_id = f.id
+      WHERE dl.chain_state = 'CHAIN_BROKEN'
+      ORDER BY f.path, s.line_start
+    `).all() as any[];
+    return rows.map(r => ({
+      decisionId: r.decision_id,
+      sectionId: r.section_id,
+      fileId: r.file_id,
+      chainLink: r.chain_link,
+      chainState: r.chain_state,
+      decisionLabel: r.decisionLabel,
+      decisionTitle: r.decisionTitle,
+      decisionBody: r.decisionBody,
+      filePath: r.filePath,
+      lineStart: r.lineStart,
+      lineEnd: r.lineEnd
+    }));
+  }
+
+  // ─── Semantic Violations CRUD ─────────────────────────────────────────────────
+
+  upsertSemanticViolation(v: SemanticViolation): void {
+    this.db.prepare(`
+      INSERT INTO semantic_violations
+        (id, concept_label, file_a_id, section_a_id, file_b_id, section_b_id, reason, proposed_fix, severity, created_at)
+      VALUES
+        (@id, @conceptLabel, @fileAId, @sectionAId, @fileBId, @sectionBId, @reason, @proposedFix, @severity, @createdAt)
+      ON CONFLICT(id) DO UPDATE SET
+        reason       = excluded.reason,
+        proposed_fix = excluded.proposed_fix,
+        severity     = excluded.severity,
+        created_at   = excluded.created_at
+    `).run({
+      id: v.id,
+      conceptLabel: v.conceptLabel,
+      fileAId: v.fileAId,
+      sectionAId: v.sectionAId,
+      fileBId: v.fileBId,
+      sectionBId: v.sectionBId,
+      reason: v.reason,
+      proposedFix: v.proposedFix,
+      severity: v.severity,
+      createdAt: v.createdAt,
+    });
+  }
+
+  getSemanticViolations(): SemanticViolation[] {
+    const rows = this.db.prepare('SELECT * FROM semantic_violations ORDER BY created_at DESC').all() as any[];
+    return rows.map(r => ({
+      id: r.id,
+      conceptLabel: r.concept_label,
+      fileAId: r.file_a_id,
+      sectionAId: r.section_a_id,
+      fileBId: r.file_b_id,
+      sectionBId: r.section_b_id,
+      reason: r.reason,
+      proposedFix: r.proposed_fix,
+      severity: r.severity,
+      createdAt: r.created_at,
+    }));
+  }
+
+  getSemanticViolationsWithDetails(): Array<SemanticViolation & { fileAPath: AbsPath; fileBPath: AbsPath; lineStartA: number; lineEndA: number; lineStartB: number; lineEndB: number }> {
+    const rows = this.db.prepare(`
+      SELECT 
+        sv.*,
+        fa.path      as fileAPath,
+        fb.path      as fileBPath,
+        sa.line_start as lineStartA,
+        sa.line_end   as lineEndA,
+        sb.line_start as lineStartB,
+        sb.line_end   as lineEndB
+      FROM semantic_violations sv
+      JOIN files fa    ON sv.file_a_id    = fa.id
+      JOIN files fb    ON sv.file_b_id    = fb.id
+      JOIN sections sa ON sv.section_a_id = sa.id
+      JOIN sections sb ON sv.section_b_id = sb.id
+      ORDER BY sv.created_at DESC
+    `).all() as any[];
+    return rows.map(r => ({
+      id: r.id,
+      conceptLabel: r.concept_label,
+      fileAId: r.file_a_id,
+      sectionAId: r.section_a_id,
+      fileBId: r.file_b_id,
+      sectionBId: r.section_b_id,
+      reason: r.reason,
+      proposedFix: r.proposed_fix,
+      severity: r.severity,
+      createdAt: r.created_at,
+      fileAPath: r.fileAPath,
+      fileBPath: r.fileBPath,
+      lineStartA: r.lineStartA,
+      lineEndA: r.lineEndA,
+      lineStartB: r.lineStartB,
+      lineEndB: r.lineEndB,
+    }));
+  }
+
+  clearSemanticViolationsForFile(fileId: Hash): void {
+    this.db.prepare('DELETE FROM semantic_violations WHERE file_a_id = ? OR file_b_id = ?').run(fileId, fileId);
+  }
+
+  clearAll(): void {
+    this.db.prepare('DELETE FROM files').run();
+    this.db.prepare('DELETE FROM edges').run();
+    this.db.prepare('DELETE FROM audit_log').run();
+    this.db.prepare('DELETE FROM decisions').run();
+    this.db.prepare('DELETE FROM decision_links').run();
+    this.db.prepare('DELETE FROM semantic_violations').run();
+  }
+
 
   // ─── Transaction Wrapper ──────────────────────────────────────────────────────
 

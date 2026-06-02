@@ -843,6 +843,58 @@ export class Indexer {
       boundFiles++;
     }
 
+    // Build POLICY_GOVERNS edges in the graph connecting files bound to this decision
+    if (params.files.length > 1) {
+      const sourcePath = params.files[0]!;
+      const sourceFile = this.db.getFileByPath(sourcePath);
+      if (sourceFile) {
+        const sourceSections = this.db.getSectionsForFile(sourceFile.id);
+        if (sourceSections.length > 0) {
+          const fromSection = sourceSections[0]!;
+          
+          for (let i = 1; i < params.files.length; i++) {
+            const targetPath = params.files[i]!;
+            const targetFile = this.db.getFileByPath(targetPath);
+            if (!targetFile) continue;
+            
+            const targetSections = this.db.getSectionsForFile(targetFile.id);
+            for (const toSection of targetSections) {
+              const edgeAB: Edge = {
+                id: `${fromSection.id}:${toSection.id}:POLICY_GOVERNS:${params.label}` as Hash,
+                fromId: fromSection.id,
+                toId: toSection.id,
+                edgeType: 'POLICY_GOVERNS',
+                weight: 1.0,
+                evidence: {
+                  reason: `Decision "${params.label}" dictates compliance with policy ${sourceFile.path.split('/').pop()}`,
+                  symbol: params.label,
+                  sourceAnalysis: 'structural_entity',
+                },
+                createdAt: now,
+              };
+              this.db.insertEdge(edgeAB);
+
+              // Add reverse edge to enable bidirectional highlighting on the canvas
+              const edgeBA: Edge = {
+                id: `${toSection.id}:${fromSection.id}:POLICY_GOVERNS:${params.label}` as Hash,
+                fromId: toSection.id,
+                toId: fromSection.id,
+                edgeType: 'POLICY_GOVERNS',
+                weight: 1.0,
+                evidence: {
+                  reason: `Decision "${params.label}" dictates compliance with policy ${sourceFile.path.split('/').pop()}`,
+                  symbol: params.label,
+                  sourceAnalysis: 'structural_entity',
+                },
+                createdAt: now,
+              };
+              this.db.insertEdge(edgeBA);
+            }
+          }
+        }
+      }
+    }
+
     this.db.appendAudit({
       eventType: 'CONCEPT_CREATED',
       sectionId: null,

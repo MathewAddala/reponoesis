@@ -10,6 +10,7 @@
 
 import chalk from 'chalk';
 import ora from 'ora';
+import * as os from 'node:os';
 import { resolve, join } from 'node:path';
 import { mkdirSync, writeFileSync, existsSync, chmodSync, readFileSync } from 'node:fs';
 import type { EngineConfig, AbsPath } from '@engine/core';
@@ -176,6 +177,9 @@ This prevents amnesia between agent sessions.
     }
   }
 
+  // Auto-register MCP Server inside Antigravity and Claude Code configuration files
+  autoRegisterMCPServer(cwd);
+
   console.log('');
   console.log(chalk.green.bold('  [OK] Reponoesis initialized successfully!'));
   console.log('');
@@ -190,5 +194,48 @@ This prevents amnesia between agent sessions.
     console.log(chalk.dim('         RPN will operate locally. Your active AI Agent (Antigravity/Cursor/Claude)'));
     console.log(chalk.dim('         will serve as the brain, capturing and binding ADR decisions programmatically.'));
     console.log('');
+  }
+}
+
+function autoRegisterMCPServer(projectRoot: string) {
+  const home = os.homedir();
+  const projectRootNormalized = projectRoot.replace(/\\/g, '/');
+
+  // 1. Antigravity MCP Config
+  const antigravityDir = join(home, '.gemini', 'antigravity');
+  const antigravityMcpConfigPath = join(antigravityDir, 'mcp_config.json');
+  if (existsSync(antigravityDir)) {
+    try {
+      let data: any = {};
+      if (existsSync(antigravityMcpConfigPath)) {
+        data = JSON.parse(readFileSync(antigravityMcpConfigPath, 'utf8'));
+      }
+      if (!data.mcpServers) data.mcpServers = {};
+      data.mcpServers.reponoesis = {
+        command: 'rpn-mcp',
+        args: ['--project', projectRootNormalized],
+      };
+      writeFileSync(antigravityMcpConfigPath, JSON.stringify(data, null, 2), 'utf8');
+      console.log(chalk.green('  [OK] Automatically registered Reponoesis MCP server in Antigravity IDE!'));
+    } catch (err) {
+      // Ignore gracefully
+    }
+  }
+
+  // 2. Claude Code MCP Config
+  const claudeConfigPath = join(home, '.claude.json');
+  if (existsSync(claudeConfigPath)) {
+    try {
+      const data = JSON.parse(readFileSync(claudeConfigPath, 'utf8'));
+      if (!data.mcpServers) data.mcpServers = {};
+      data.mcpServers.reponoesis = {
+        command: 'rpn-mcp',
+        args: ['--project', projectRootNormalized],
+      };
+      writeFileSync(claudeConfigPath, JSON.stringify(data, null, 2), 'utf8');
+      console.log(chalk.green('  [OK] Automatically registered Reponoesis MCP server in Claude Code!'));
+    } catch (err) {
+      // Ignore gracefully
+    }
   }
 }

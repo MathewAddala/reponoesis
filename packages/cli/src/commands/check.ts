@@ -262,6 +262,14 @@ export async function checkCommand(options: CheckOptions): Promise<void> {
     console.log(chalk.magenta('  -------------------------------------------------------------'));
     console.log('');
 
+    console.log(chalk.bold.cyan('  🖥️  [UI VISUALIZER]'));
+    console.log(chalk.cyan('  -------------------------------------------------------------'));
+    console.log(chalk.cyan('  To visualize these drifts interactively on your 2D PCB Canvas:'));
+    console.log(chalk.cyan('    Run:  node packages/cli/dist/index.js ui --port 3000'));
+    console.log(chalk.cyan('    Open: http://localhost:3000 in your browser to view the canvas.'));
+    console.log(chalk.cyan('  -------------------------------------------------------------'));
+    console.log('');
+
     if (semanticViolations.length > 0) {
       console.log(chalk.red.bold('  [BLOCKED] Commit BLOCKED — AI semantic contradictions exist.'));
       console.log(chalk.dim('  Please resolve the logic inconsistencies highlighted above.'));

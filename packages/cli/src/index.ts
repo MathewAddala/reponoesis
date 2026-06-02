@@ -53,6 +53,7 @@ program
   .command('check')
   .description('Check current git diff for semantic chain breaks (used by pre-commit hook)')
   .option('--json', 'Output results as JSON')
+  .option('--working', 'Check working copy (unstaged changes) in addition to staged files')
   .option('--fail-on <level>', 'Exit code 1 if severity >= level (critical|high|medium)', 'critical')
   .action(checkCommand);
 

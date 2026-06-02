@@ -21,6 +21,7 @@ import type { AbsPath } from '@engine/core';
 
 interface CheckOptions {
   json: boolean;
+  working?: boolean;
   failOn: 'critical' | 'high' | 'medium' | 'any';
 }
 
@@ -60,6 +61,18 @@ export async function checkCommand(options: CheckOptions): Promise<void> {
       .split('\n')
       .filter(Boolean)
       .map(f => resolve(repoRoot, f).replace(/\\/g, '/'));
+
+    // Check working copy modifications if --working is passed or if we are not running under a hook and there are no staged files
+    if (options.working || (!process.env['RPN_HOOK_RUNNING'] && stagedFiles.length === 0)) {
+      const unstagedDiff = await git.diff(['--name-only']);
+      const unstagedFiles = unstagedDiff
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map(f => resolve(repoRoot, f).replace(/\\/g, '/'));
+      
+      stagedFiles = Array.from(new Set([...stagedFiles, ...unstagedFiles]));
+    }
   } catch {
     // Not in git repo or no staged files
     stagedFiles = [];
@@ -142,7 +155,7 @@ export async function checkCommand(options: CheckOptions): Promise<void> {
 
   console.log('');
   console.log(chalk.bold.cyan('[RPN] Reponoesis — Semantic Chain Integrity Check'));
-  console.log(chalk.dim(`   Analyzing ${stagedFiles.length} staged file(s)...`));
+  console.log(chalk.dim(`   Analyzing ${stagedFiles.length} changed file(s)...`));
   console.log('');
 
   // Changed files

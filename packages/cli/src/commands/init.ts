@@ -141,8 +141,10 @@ Whenever you execute a terminal command (like \`rpn check\`, \`rpn scan\`, or \`
   writeFileSync(resolve(cwd, '.cursorrules'), rulesBody, 'utf-8');
   // 3. Claude Code rules (Claude Code/CLI loads this automatically on startup)
   writeFileSync(resolve(cwd, 'CLAUDE.md'), rulesBody, 'utf-8');
+  // 4. Codex rules (Codex loads this automatically on startup)
+  writeFileSync(resolve(cwd, 'AGENTS.md'), rulesBody, 'utf-8');
   
-  spinner.succeed(`AI Agent rules auto-generated at ${chalk.underline('rpn.rules.md')} (and replicated to .cursorrules & CLAUDE.md)`);
+  spinner.succeed(`AI Agent rules auto-generated at ${chalk.underline('rpn.rules.md')} (and replicated to .cursorrules, CLAUDE.md, and AGENTS.md)`);
 
   // Install pre-commit hook
   if (options.hook) {

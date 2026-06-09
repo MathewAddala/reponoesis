@@ -9,9 +9,6 @@ export default defineConfig({
   splitting: false,
   external: [
     'better-sqlite3',
-    '@babel/parser',
-    '@babel/traverse',
-    '@babel/types',
     'unified',
     'remark-parse',
     'unist-util-visit',

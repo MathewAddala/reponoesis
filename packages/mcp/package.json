@@ -2,6 +2,11 @@
   "name": "@engine/mcp",
   "version": "0.1.0",
   "description": "MCP server — exposes engine tools to AI agents (Cursor, Claude Code, Gemini)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MathewAddala/reponoesis.git",
+    "directory": "packages/mcp"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

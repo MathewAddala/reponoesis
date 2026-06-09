@@ -2,6 +2,11 @@
   "name": "@engine/core",
   "version": "0.1.0",
   "description": "Core engine: AST parsing, concept Merkle chain, semantic dependency graph",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MathewAddala/reponoesis.git",
+    "directory": "packages/core"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

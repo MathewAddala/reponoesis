@@ -2,6 +2,11 @@
   "name": "@engine/cli",
   "version": "0.1.0",
   "description": "CLI tool — init, scan, check, review, acknowledge",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MathewAddala/reponoesis.git",
+    "directory": "packages/cli"
+  },
   "type": "module",
   "bin": {
     "rpn": "./dist/index.js"

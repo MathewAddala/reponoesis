@@ -2,6 +2,10 @@
   "name": "engine-root",
   "version": "0.1.0",
   "description": "Semantic dependency engine — internal codename, rename before release",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MathewAddala/reponoesis.git"
+  },
   "private": true,
   "workspaces": [
     "packages/*"

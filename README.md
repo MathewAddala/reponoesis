@@ -33,6 +33,20 @@ This is not a bug. It's a structural gap — no tool tracks semantic dependencie
 
 **5. Repo Remembrance** — ADRs (Architecture Decision Records) with full WHY rationale are stored and surfaced to new agent sessions via `rpn_get_context`. No more agent amnesia on "why did we choose X?"
 
+## Screenshots
+
+### 1. Visual HUD Circuit Board (`rpn ui`)
+Every file is rendered as an SOIC package on a dark circuit grid, displaying semantic connections as PCB traces.
+![Visual HUD Circuit Board](assets/visualizer.png)
+
+### 2. Handover Sandbox
+Test URL imports and visualize dependencies between codebases and files interactively.
+![Handover Sandbox](assets/sandbox.png)
+
+### 3. Active Contradiction Dashboard (`rpn status`)
+View the summary of valid chains, broken chains, and active logic contradictions before committing.
+![Active Contradiction Dashboard](assets/dashboard.png)
+
 ---
 
 ## Architecture
@@ -53,7 +67,7 @@ packages/
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-org/reponoesis.git
+git clone https://github.com/MathewAddala/reponoesis.git
 cd reponoesis
 
 # 2. Install dependencies & build

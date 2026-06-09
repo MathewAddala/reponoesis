@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build --workspace=packages/core && npm run build --workspace=packages/cli && npm run build --workspace=packages/mcp && npm run build --workspace=packages/ui",
     "build:core": "npm run build --workspace=packages/core",
     "build:cli": "npm run build --workspace=packages/cli",
     "build:mcp": "npm run build --workspace=packages/mcp",

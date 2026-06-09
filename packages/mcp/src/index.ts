@@ -326,6 +326,30 @@ Be specific in the explanation ('reason') of what caused what, and supply a clea
         required: ['concept_label', 'file_a', 'line_start_a', 'file_b', 'line_start_b', 'reason', 'proposed_fix'],
       },
     },
+    {
+      name: 'rpn_record_drift_explanation',
+      description: `[YOU are the brain] Record an AI-explained drift description for a broken decision link or concept.
+
+Since you are the AI Brain, you should analyze why a Merkle chain broke (what semantic drift occurred in plain English) and call this tool to write that explanation back to the local database. The visualizer UI will display this explanation directly under the "Why it's broken" section, replacing the default cryptographic message.`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          concept_id: {
+            type: 'string',
+            description: 'Concept ID or Decision ID whose chain is broken (from rpn_validate output)',
+          },
+          section_id: {
+            type: 'string',
+            description: 'Optional: Section ID of the broken link (if multiple sections are bound to the same decision/concept)',
+          },
+          explanation: {
+            type: 'string',
+            description: 'Your plain English explanation of the semantic drift that occurred',
+          },
+        },
+        required: ['concept_id', 'explanation'],
+      },
+    },
   ],
 }));
 
@@ -635,6 +659,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             concept_label: parsed.concept_label,
             message: `Semantic contradiction recorded successfully in the local database. Trace link drawn.`,
             next_step: 'Run rpn check or view UI to inspect the contradiction warning.',
+          }, null, 2),
+        }],
+      };
+    }
+
+    case 'rpn_record_drift_explanation': {
+      const parsed = z.object({
+        concept_id: z.string(),
+        section_id: z.string().optional(),
+        explanation: z.string(),
+      }).parse(args);
+
+      indexer.recordDriftExplanation(parsed.concept_id as Hash, (parsed.section_id as Hash) ?? null, parsed.explanation);
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            status: 'RECORDED',
+            concept_id: parsed.concept_id,
+            message: 'Custom drift explanation recorded successfully.',
           }, null, 2),
         }],
       };

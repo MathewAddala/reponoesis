@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS concepts (
   ack_at       INTEGER,
   ack_by       TEXT,
   created_at   INTEGER NOT NULL,
-  updated_at   INTEGER NOT NULL
+  updated_at   INTEGER NOT NULL,
+  drift_explanation TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_concepts_label ON concepts(label);
 CREATE INDEX IF NOT EXISTS idx_concepts_section ON concepts(section_id);
@@ -180,6 +181,7 @@ CREATE TABLE IF NOT EXISTS decision_links (
   file_id      TEXT NOT NULL,
   chain_link   TEXT NOT NULL,
   chain_state  TEXT NOT NULL DEFAULT 'VALID',
+  drift_explanation TEXT,
   PRIMARY KEY (decision_id, section_id)
 );
 CREATE INDEX IF NOT EXISTS idx_decision_links_state ON decision_links(chain_state);
@@ -216,6 +218,24 @@ export class GraphDB {
 
   private applySchema(): void {
     this.db.exec(SCHEMA_SQL);
+
+    // Schema migrations for existing databases
+    try {
+      this.db.prepare('SELECT drift_explanation FROM concepts LIMIT 1').get();
+    } catch {
+      try {
+        this.db.exec('ALTER TABLE concepts ADD COLUMN drift_explanation TEXT;');
+      } catch {}
+    }
+
+    try {
+      this.db.prepare('SELECT drift_explanation FROM decision_links LIMIT 1').get();
+    } catch {
+      try {
+        this.db.exec('ALTER TABLE decision_links ADD COLUMN drift_explanation TEXT;');
+      } catch {}
+    }
+
     // Record schema version if not already present
     const hasVersion = this.db
       .prepare('SELECT version FROM schema_version WHERE version = 1')
@@ -304,6 +324,11 @@ export class GraphDB {
     return rows.map(r => this.mapSectionRow(r));
   }
 
+  getSection(id: Hash): Section | undefined {
+    const row = this.db.prepare('SELECT * FROM sections WHERE id = ?').get(id);
+    return row ? this.mapSectionRow(row) : undefined;
+  }
+
   getSectionHash(sectionId: Hash): string | undefined {
     const row = this.db.prepare('SELECT content_hash FROM sections WHERE id = ?').get(sectionId) as { content_hash: string } | undefined;
     return row?.content_hash;
@@ -368,17 +393,18 @@ export class GraphDB {
     this.db.prepare(`
       INSERT INTO concepts
         (id, label, canonical, section_id, file_id, confidence, chain_link, chain_state,
-         broken_at, ack_at, ack_by, created_at, updated_at)
+         broken_at, ack_at, ack_by, created_at, updated_at, drift_explanation)
       VALUES
         (@id, @label, @canonical, @sectionId, @fileId, @confidence, @chainLink, @chainState,
-         @brokenAt, @ackAt, @ackBy, @createdAt, @updatedAt)
+         @brokenAt, @ackAt, @ackBy, @createdAt, @updatedAt, @driftExplanation)
       ON CONFLICT(id) DO UPDATE SET
         chain_link  = excluded.chain_link,
         chain_state = excluded.chain_state,
         broken_at   = excluded.broken_at,
         ack_at      = excluded.ack_at,
         ack_by      = excluded.ack_by,
-        updated_at  = excluded.updated_at
+        updated_at  = excluded.updated_at,
+        drift_explanation = excluded.drift_explanation
     `).run({
       id: concept.id,
       label: concept.label,
@@ -393,6 +419,7 @@ export class GraphDB {
       ackBy: concept.ackBy ?? null,
       createdAt: concept.createdAt,
       updatedAt: concept.updatedAt,
+      driftExplanation: concept.driftExplanation ?? null,
     });
   }
 
@@ -411,6 +438,7 @@ export class GraphDB {
       ackBy: r.ack_by,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
+      driftExplanation: r.drift_explanation,
     };
   }
 
@@ -783,12 +811,20 @@ export class GraphDB {
 
   insertDecisionLink(link: DecisionLink): void {
     this.db.prepare(`
-      INSERT INTO decision_links (decision_id, section_id, file_id, chain_link, chain_state)
-      VALUES (@decisionId, @sectionId, @fileId, @chainLink, @chainState)
+      INSERT INTO decision_links (decision_id, section_id, file_id, chain_link, chain_state, drift_explanation)
+      VALUES (@decisionId, @sectionId, @fileId, @chainLink, @chainState, @driftExplanation)
       ON CONFLICT(decision_id, section_id) DO UPDATE SET
         chain_link  = excluded.chain_link,
-        chain_state = excluded.chain_state
-    `).run(link);
+        chain_state = excluded.chain_state,
+        drift_explanation = excluded.drift_explanation
+    `).run({
+      decisionId: link.decisionId,
+      sectionId: link.sectionId,
+      fileId: link.fileId,
+      chainLink: link.chainLink,
+      chainState: link.chainState,
+      driftExplanation: link.driftExplanation ?? null,
+    });
   }
 
   getDecisionLinksForFile(fileId: Hash): Array<DecisionLink & { decisionLabel: string; decisionTitle: string }> {
@@ -804,6 +840,7 @@ export class GraphDB {
       fileId: r.file_id,
       chainLink: r.chain_link,
       chainState: r.chain_state,
+      driftExplanation: r.drift_explanation,
       decisionLabel: r.decisionLabel,
       decisionTitle: r.decisionTitle
     }));
@@ -832,6 +869,7 @@ export class GraphDB {
       fileId: r.file_id,
       chainLink: r.chain_link,
       chainState: r.chain_state,
+      driftExplanation: r.drift_explanation,
       decisionLabel: r.decisionLabel,
       decisionTitle: r.decisionTitle,
       decisionBody: r.decisionBody,
@@ -839,6 +877,33 @@ export class GraphDB {
       lineStart: r.lineStart,
       lineEnd: r.lineEnd
     }));
+  }
+
+  updateDriftExplanation(id: Hash, sectionId: Hash | null, explanation: string): void {
+    if (sectionId) {
+      this.db.prepare(`
+        UPDATE decision_links
+        SET drift_explanation = ?
+        WHERE decision_id = ? AND section_id = ?
+      `).run(explanation, id, sectionId);
+    } else {
+      // Check if it's a concept
+      const hasConcept = this.db.prepare('SELECT id FROM concepts WHERE id = ?').get(id);
+      if (hasConcept) {
+        this.db.prepare(`
+          UPDATE concepts
+          SET drift_explanation = ?
+          WHERE id = ?
+        `).run(explanation, id);
+      } else {
+        // Fall back to updating decision_links for all sections of this decision
+        this.db.prepare(`
+          UPDATE decision_links
+          SET drift_explanation = ?
+          WHERE decision_id = ?
+        `).run(explanation, id);
+      }
+    }
   }
 
   // ─── Semantic Violations CRUD ─────────────────────────────────────────────────

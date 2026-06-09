@@ -200,6 +200,15 @@ export default function App() {
     reason: string;
     governingADRLabel?: string;
     driftExplanation?: string;
+    filePathA?: string;
+    filePathB?: string;
+    lineStartA?: number;
+    lineEndA?: number;
+    lineStartB?: number;
+    lineEndB?: number;
+    sectionTextB?: string;
+    isSemanticViolation?: boolean;
+    proposedFix?: string;
   } | null>(null);
 
   const [selectedADR, setSelectedADR] = useState<{
@@ -948,18 +957,29 @@ export default function App() {
 
     // 3. Agentic Semantic Violations
     const semanticViolationItems = (data.semanticViolations || [])
-      .map(v => ({
-        conceptId: `sv:${v.id}`,
-        conceptLabel: v.conceptLabel,
-        filePath: `${v.fileAPath.split(/[\\/]/).pop()} ↔ ${v.fileBPath.split(/[\\/]/).pop()}`,
-        sectionText: `Conflict Reason:\n${v.reason}\n\nProposed Fix:\n${v.proposedFix}`,
-        chainState: 'DRIFT',
-        reason: `Agent Brain logic contradiction: ${v.reason}`,
-        governingADRLabel: undefined,
-        driftExplanation: v.reason,
-        isSemanticViolation: true,
-        proposedFix: v.proposedFix,
-      }));
+      .map(v => {
+        const secA = data.sections.find(s => s.id === v.sectionAId);
+        const secB = data.sections.find(s => s.id === v.sectionBId);
+        return {
+          conceptId: `sv:${v.id}`,
+          conceptLabel: v.conceptLabel,
+          filePath: `${v.fileAPath.split(/[\\/]/).pop()} ↔ ${v.fileBPath.split(/[\\/]/).pop()}`,
+          filePathA: v.fileAPath,
+          filePathB: v.fileBPath,
+          lineStartA: v.lineStartA,
+          lineEndA: v.lineEndA,
+          lineStartB: v.lineStartB,
+          lineEndB: v.lineEndB,
+          sectionText: secA ? secA.rawText : '(Code Section A)',
+          sectionTextB: secB ? secB.rawText : '(Code Section B)',
+          chainState: 'DRIFT',
+          reason: `Agent Brain logic contradiction: ${v.reason}`,
+          governingADRLabel: undefined,
+          driftExplanation: v.reason,
+          isSemanticViolation: true,
+          proposedFix: v.proposedFix,
+        };
+      });
 
     // 4. Workspace suggestions (Undocumented constant mutations)
     const suggestionItems = ((data as any).suggestions || [])
@@ -983,6 +1003,15 @@ export default function App() {
   };
 
   // ─── Code Violation Highlighter ──────────────────────────────────────────────
+
+  const getRelativePath = (absPath?: string) => {
+    if (!absPath) return '';
+    const parts = absPath.replace(/\\/g, '/').split('/');
+    if (parts.length > 3) {
+      return parts.slice(-3).join('/');
+    }
+    return absPath;
+  };
 
   const highlightCodeViolation = (codeText: string, conceptLabel: string) => {
     if (!codeText) return null;
@@ -1996,51 +2025,37 @@ export default function App() {
                     )}
 
                     {/* Side-by-Side Split Code compare */}
-                    <div className="compare-grid">
+                    <div className="compare-grid" style={{ flex: 1, height: 'auto', minHeight: 0, marginTop: '8px' }}>
                       {/* Left: Code Block */}
                       <div className="compare-pane" style={{ border: '1px solid #1f1f23' }}>
                         <div className="compare-pane-header" style={{ borderBottom: '1px solid #1f1f23' }}>
-                          <span>{selectedDriftViolation.isSemanticViolation ? 'AI Audit Rationale' : 'Modified Code Segment'}</span>
+                          <span>
+                            {selectedDriftViolation.isSemanticViolation 
+                              ? `File A: ${getRelativePath(selectedDriftViolation.filePathA)} (L${selectedDriftViolation.lineStartA}-${selectedDriftViolation.lineEndA})` 
+                              : 'Modified Code Segment'}
+                          </span>
                         </div>
-                        <div className="compare-pane-body" style={{ backgroundColor: '#020203', overflowY: 'auto' }}>
+                        <div className="compare-pane-body" style={{ backgroundColor: '#020203', overflowY: 'auto', maxHeight: 'none' }}>
                           {selectedDriftViolation.isSemanticViolation ? (
-                            <div style={{ padding: '14px', fontSize: '12px', lineHeight: '1.6', color: '#f4f4f5', fontFamily: 'var(--font-mono)', whiteSpace: 'pre-wrap' }}>
-                              <div style={{ color: '#ef4444', fontWeight: 600, marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Desync Conflict:</div>
-                              {selectedDriftViolation.driftExplanation}
-                            </div>
+                            highlightCodeViolation(selectedDriftViolation.sectionText, selectedDriftViolation.conceptLabel)
                           ) : (
                             highlightCodeViolation(selectedDriftViolation.sectionText, selectedDriftViolation.conceptLabel)
                           )}
                         </div>
                       </div>
 
-                      {/* Right: Governing ADR Ledger Document */}
+                      {/* Right: Second Code block or Governing ADR Ledger Document */}
                       <div className="compare-pane" style={{ border: '1px solid #1f1f23' }}>
                         <div className="compare-pane-header" style={{ borderBottom: '1px solid #1f1f23' }}>
-                          <span>{selectedDriftViolation.isSemanticViolation ? 'AI Proposed Fix' : 'Governing ADR Rationale'}</span>
+                          <span>
+                            {selectedDriftViolation.isSemanticViolation 
+                              ? `File B: ${getRelativePath(selectedDriftViolation.filePathB)} (L${selectedDriftViolation.lineStartB}-${selectedDriftViolation.lineEndB})` 
+                              : 'Governing ADR Rationale'}
+                          </span>
                         </div>
-                        <div className="compare-pane-body" style={{ overflowY: 'auto' }}>
+                        <div className="compare-pane-body" style={{ backgroundColor: selectedDriftViolation.isSemanticViolation ? '#020203' : 'transparent', overflowY: 'auto', maxHeight: 'none' }}>
                           {selectedDriftViolation.isSemanticViolation ? (
-                            <div className="doc-content" style={{ marginTop: 0, padding: '14px' }}>
-                              <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#f97316', marginBottom: '8px' }}>
-                                Agent Proposed Semantic Fix
-                              </h3>
-                              <pre style={{
-                                background: '#09090b',
-                                border: '1px solid #27272a',
-                                padding: '10px',
-                                borderRadius: '6px',
-                                fontSize: '10.5px',
-                                fontFamily: 'var(--font-mono)',
-                                color: '#f4f4f5',
-                                overflowX: 'auto',
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-all',
-                                lineHeight: '1.4',
-                              }}>
-                                {selectedDriftViolation.proposedFix}
-                              </pre>
-                            </div>
+                            highlightCodeViolation(selectedDriftViolation.sectionTextB || '', selectedDriftViolation.conceptLabel)
                           ) : selectedDriftViolation.governingADRLabel ? (
                             (() => {
                               const adr = data?.decisions?.find(d => d.label === selectedDriftViolation.governingADRLabel);
@@ -2092,6 +2107,39 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Bottom proposed fix banner (only for semantic violation) */}
+                    {selectedDriftViolation.isSemanticViolation && selectedDriftViolation.proposedFix && (
+                      <div style={{
+                        background: 'rgba(16, 185, 129, 0.05)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        borderRadius: '8px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        flexShrink: 0
+                      }}>
+                        <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>✨</span> Agent Proposed Resolution
+                        </div>
+                        <pre style={{
+                          background: '#020203',
+                          border: '1px solid rgba(255, 255, 255, 0.04)',
+                          padding: '8px 10px',
+                          borderRadius: '6px',
+                          fontSize: '10.5px',
+                          fontFamily: 'var(--font-mono)',
+                          color: '#f4f4f5',
+                          margin: 0,
+                          overflowX: 'auto',
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: '1.4'
+                        }}>
+                          {selectedDriftViolation.proposedFix}
+                        </pre>
+                      </div>
+                    )}
 
                     {/* Actions Panel */}
                     <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid #1f1f23', paddingTop: '16px' }}>

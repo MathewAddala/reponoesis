@@ -208,6 +208,16 @@ export async function unpackCommand(packetPath: string): Promise<void> {
     console.error(chalk.red(`[ERROR] Error parsing or unpacking handover packet: ${(err as Error).message}`));
   } finally {
     db.close();
+
+    // Rebuild decision edges to ensure POLICY_GOVERNS relationships are updated
+    try {
+      const indexer = new Indexer(config);
+      indexer.rebuildDecisionEdges();
+      indexer.close();
+    } catch (e) {
+      console.error(chalk.red(`[ERROR] Error rebuilding decision edges: ${(e as Error).message}`));
+    }
+
     console.log('');
   }
 }

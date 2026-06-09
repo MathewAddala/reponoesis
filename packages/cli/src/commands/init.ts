@@ -11,7 +11,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import * as os from 'node:os';
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { mkdirSync, writeFileSync, existsSync, chmodSync, readFileSync } from 'node:fs';
 import type { EngineConfig, AbsPath } from '@engine/core';
 
@@ -208,58 +208,90 @@ function autoRegisterMCPServer(projectRoot: string) {
   const home = os.homedir();
   const projectRootNormalized = projectRoot.replace(/\\/g, '/');
 
-  // 1. Antigravity MCP Config
-  const antigravityDir = join(home, '.gemini', 'antigravity');
-  const antigravityMcpConfigPath = join(antigravityDir, 'mcp_config.json');
-  if (existsSync(antigravityDir)) {
+  // Helper to safely register mcp config in JSON files
+  const registerInJson = (filePath: string, name: string) => {
     try {
       let data: any = {};
-      if (existsSync(antigravityMcpConfigPath)) {
-        data = JSON.parse(readFileSync(antigravityMcpConfigPath, 'utf8'));
+      const exists = existsSync(filePath);
+      if (exists) {
+        data = JSON.parse(readFileSync(filePath, 'utf8'));
       }
       if (!data.mcpServers) data.mcpServers = {};
       data.mcpServers.reponoesis = {
         command: 'rpn-mcp',
         args: ['--project', projectRootNormalized],
       };
-      writeFileSync(antigravityMcpConfigPath, JSON.stringify(data, null, 2), 'utf8');
-      console.log(chalk.green('  [OK] Automatically registered Reponoesis MCP server in Antigravity IDE!'));
+      
+      const dir = dirname(filePath);
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+      writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+      console.log(chalk.green(`  [OK] Automatically registered Reponoesis MCP server in ${name}!`));
     } catch (err) {
       // Ignore gracefully
     }
+  };
+
+  // 1. Antigravity MCP Config
+  const antigravityMcpConfigPath = join(home, '.gemini', 'antigravity', 'mcp_config.json');
+  if (existsSync(dirname(antigravityMcpConfigPath))) {
+    registerInJson(antigravityMcpConfigPath, 'Antigravity IDE');
   }
 
   // 2. Claude Code MCP Config
   const claudeConfigPath = join(home, '.claude.json');
   if (existsSync(claudeConfigPath)) {
-    try {
-      const data = JSON.parse(readFileSync(claudeConfigPath, 'utf8'));
-      if (!data.mcpServers) data.mcpServers = {};
-      data.mcpServers.reponoesis = {
-        command: 'rpn-mcp',
-        args: ['--project', projectRootNormalized],
-      };
-      writeFileSync(claudeConfigPath, JSON.stringify(data, null, 2), 'utf8');
-      console.log(chalk.green('  [OK] Automatically registered Reponoesis MCP server in Claude Code!'));
-    } catch (err) {
-      // Ignore gracefully
-    }
+    registerInJson(claudeConfigPath, 'Claude Code CLI');
   }
 
-  // 3. Codex MCP Config (TOML)
+  // 3. Claude Desktop Config
+  const isWindows = process.platform === 'win32';
+  const claudeDesktopPath = isWindows
+    ? join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json')
+    : join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+  if (existsSync(dirname(claudeDesktopPath)) || existsSync(claudeDesktopPath)) {
+    registerInJson(claudeDesktopPath, 'Claude Desktop');
+  }
+
+  // 4. Windsurf Config
+  const windsurfPath = join(home, '.codeium', 'windsurf', 'mcp_config.json');
+  if (existsSync(dirname(windsurfPath)) || existsSync(windsurfPath)) {
+    registerInJson(windsurfPath, 'Windsurf IDE');
+  }
+
+  // 5. Cline / Roo Code Settings
+  const clinePath = isWindows
+    ? join(process.env.APPDATA || '', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')
+    : join(home, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json');
+  
+  const clineLinuxPath = join(home, '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json');
+
+  if (existsSync(dirname(clinePath)) || existsSync(clinePath)) {
+    registerInJson(clinePath, 'Cline / Roo Code extension');
+  } else if (!isWindows && (existsSync(dirname(clineLinuxPath)) || existsSync(clineLinuxPath))) {
+    registerInJson(clineLinuxPath, 'Cline / Roo Code extension (Linux)');
+  }
+
+  // 6. Codex MCP Config (TOML)
   const codexGlobalDir = join(home, '.codex');
   const codexGlobalConfig = join(codexGlobalDir, 'config.toml');
   const codexLocalDir = join(projectRoot, '.codex');
   const codexLocalConfig = join(codexLocalDir, 'config.toml');
 
-  const tomlBlock = `\n[mcpServers.reponoesis]\ncommand = "rpn-mcp"\nargs = ["--project", "${projectRootNormalized}"]\n`;
+  const tomlBlock = `\n[mcp_servers.reponoesis]\ncommand = "rpn-mcp"\nargs = ["--project", "${projectRootNormalized}"]\n`;
 
   const registerInToml = (filePath: string) => {
     try {
       if (existsSync(filePath)) {
         let content = readFileSync(filePath, 'utf8');
+        // Clean up old camelCase style if it exists
         if (content.includes('[mcpServers.reponoesis]')) {
-          content = content.replace(/\[mcpServers\.reponoesis\][\s\S]*?(?=\n\s*\[|$)/, `[mcpServers.reponoesis]\ncommand = "rpn-mcp"\nargs = ["--project", "${projectRootNormalized}"]\n`);
+          content = content.replace(/\[mcpServers\.reponoesis\][\s\S]*?(?=\n\s*\[|$)/g, '');
+        }
+        // Write or update the correct snake_case style
+        if (content.includes('[mcp_servers.reponoesis]')) {
+          content = content.replace(/\[mcp_servers\.reponoesis\][\s\S]*?(?=\n\s*\[|$)/, `[mcp_servers.reponoesis]\ncommand = "rpn-mcp"\nargs = ["--project", "${projectRootNormalized}"]\n`);
         } else {
           content += tomlBlock;
         }

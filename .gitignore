@@ -11,5 +11,7 @@ dist/
 release/
 scratch/
 **/.engine/
+launch_assets/
+
 
 

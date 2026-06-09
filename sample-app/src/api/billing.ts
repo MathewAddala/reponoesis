@@ -6,8 +6,8 @@
  * GOOGLE_ANALYTICS_ID = UA-123456789-1
  */
 
-const FREE_PLAN_LIMIT = 3;
-const PRO_PLAN_PRICE = 49;
+const FREE_PLAN_LIMIT = 5;
+const PRO_PLAN_PRICE = 29;
 const GOOGLE_ANALYTICS_ID = 'UA-123456789-1';
 
 export function checkPlanLimit(userId: string, projectCount: number): boolean {

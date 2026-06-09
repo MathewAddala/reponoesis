@@ -1,0 +1,4 @@
+
+[mcp_servers.reponoesis]
+command = "rpn-mcp"
+args = ["--project", "C:/Users/addal/OneDrive/Desktop/airevenuemachine"]

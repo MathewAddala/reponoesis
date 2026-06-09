@@ -15,9 +15,22 @@ if (!existsSync(UI_DIST_DIR)) {
   UI_DIST_DIR = resolve(__dirname, '..', '..', '..', 'ui', 'dist');
 }
 
-function explainDrift(adrBody: string, fileContent: string, filePath: string): string {
-  const lowerADR = adrBody.toLowerCase();
+function explainDrift(adrLabel: string, adrBody: string, fileContent: string, filePath: string): string {
+  const lowerADR = (adrLabel + ' ' + adrBody).toLowerCase();
   const fileLabel = filePath.replace(/\\/g, '/').split('/').pop() || '';
+
+  if (fileLabel === 'billing-terms.json') {
+    try {
+      const parsed = JSON.parse(fileContent);
+      const paidPlans = parsed.plans?.filter((p: any) => p.monthlyPriceUsd > 0) || [];
+      if (paidPlans.length > 0) {
+        const planDetails = paidPlans.map((p: any) => `${p.name} ($${p.monthlyPriceUsd})`).join(', ');
+        return `Rationale specifies all products must be free ($0), but billing-terms.json currently defines paid plans: ${planDetails}.`;
+      } else {
+        return `Rationale specifies all products must be free, which aligns with the current $0 plans in billing-terms.json. Run 'rpn review' to resolve this warning.`;
+      }
+    } catch {}
+  }
 
   if (fileLabel === 'billing.ts') {
     const limitMatch = fileContent.match(/(?:const|let|var)\s+FREE_PLAN_LIMIT\s*=\s*(\d+)/);
@@ -167,14 +180,14 @@ export async function uiCommand(options: UICommandOptions) {
           decisionLinks: rawDecisionLinks.map(l => {
             const file = files.find(f => f.id === l.file_id);
             const decision = rawDecisions.find(d => d.id === l.decision_id);
-            let driftExplanation = '';
+            let driftExplanation = l.drift_explanation || '';
             
-            if (l.chain_state === 'CHAIN_BROKEN' && file && decision) {
+            if (!driftExplanation && l.chain_state === 'CHAIN_BROKEN' && file && decision) {
               try {
                 const absolutePath = file.path;
                 if (existsSync(absolutePath)) {
                   const content = readFileSync(absolutePath, 'utf8');
-                  driftExplanation = explainDrift(decision.body, content, file.path);
+                  driftExplanation = explainDrift(decision.label, decision.body, content, file.path);
                 }
               } catch {}
             }
@@ -246,10 +259,12 @@ export async function uiCommand(options: UICommandOptions) {
     }
   });
 
+  let attemptPort = port;
   server.on('error', (err: any) => {
     if (err.code === 'EADDRINUSE') {
-      console.log(`[WARN] Port ${port} is in use, trying port ${port + 1}...`);
-      server.listen(port + 1, host);
+      console.log(`[WARN] Port ${attemptPort} is in use, trying port ${attemptPort + 1}...`);
+      attemptPort++;
+      server.listen(attemptPort, host);
     } else {
       console.error(`[ERROR] Server error: ${err.message}`);
       db.close();
@@ -257,7 +272,7 @@ export async function uiCommand(options: UICommandOptions) {
     }
   });
 
-  server.listen(port, host, () => {
+  server.listen(attemptPort, host, () => {
     const activePort = (server.address() as any).port;
     const url = `http://${host}:${activePort}`;
 

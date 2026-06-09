@@ -139,6 +139,7 @@ export interface Concept {
   // Timestamps
   createdAt: number;
   updatedAt: number;
+  driftExplanation?: string | null;
 }
 
 // ─── Business Rules ────────────────────────────────────────────────────────────
@@ -307,6 +308,7 @@ export interface DecisionLink {
   fileId: Hash;
   chainLink: Hash;
   chainState: ChainState;
+  driftExplanation?: string | null;
 }
 
 export interface HandoverPacket {

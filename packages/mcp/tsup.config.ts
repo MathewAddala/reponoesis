@@ -7,6 +7,25 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   splitting: false,
-  external: ['better-sqlite3', '@modelcontextprotocol/sdk'],
+  shims: true,
+  external: [
+    'better-sqlite3',
+    '@modelcontextprotocol/sdk',
+    'simple-git',
+    'chokidar',
+    'glob',
+    'yaml',
+    'zod',
+    '@babel/parser',
+    '@babel/traverse',
+    '@babel/types',
+    'unified',
+    'remark-parse',
+    'unist-util-visit',
+    'js-sha3',
+    'p-limit'
+  ],
   noExternal: ['@engine/core'],
 });
+
+

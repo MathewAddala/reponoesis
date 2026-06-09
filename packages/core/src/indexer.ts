@@ -188,6 +188,8 @@ export class Indexer {
       onProgress?.('🔗 Syntactic dependency analysis disabled by config.');
     }
 
+    this.rebuildDecisionEdges();
+
     let conceptCount = 0;
 
     onProgress?.('⛓️  Validating chains...');
@@ -275,6 +277,7 @@ export class Indexer {
     if (!this.config.gatekeeper.disableSyntacticEdges) {
       this.buildSyntacticEdges(results);
     }
+    this.rebuildDecisionEdges();
     // Offline AI concept extraction disabled
     const brokenChains = this.validateAllChains();
 
@@ -843,58 +846,6 @@ export class Indexer {
       boundFiles++;
     }
 
-    // Build POLICY_GOVERNS edges in the graph connecting files bound to this decision
-    if (params.files.length > 1) {
-      const sourcePath = params.files[0]!;
-      const sourceFile = this.db.getFileByPath(sourcePath);
-      if (sourceFile) {
-        const sourceSections = this.db.getSectionsForFile(sourceFile.id);
-        if (sourceSections.length > 0) {
-          const fromSection = sourceSections[0]!;
-          
-          for (let i = 1; i < params.files.length; i++) {
-            const targetPath = params.files[i]!;
-            const targetFile = this.db.getFileByPath(targetPath);
-            if (!targetFile) continue;
-            
-            const targetSections = this.db.getSectionsForFile(targetFile.id);
-            for (const toSection of targetSections) {
-              const edgeAB: Edge = {
-                id: `${fromSection.id}:${toSection.id}:POLICY_GOVERNS:${params.label}` as Hash,
-                fromId: fromSection.id,
-                toId: toSection.id,
-                edgeType: 'POLICY_GOVERNS',
-                weight: 1.0,
-                evidence: {
-                  reason: `Decision "${params.label}" dictates compliance with policy ${sourceFile.path.split('/').pop()}`,
-                  symbol: params.label,
-                  sourceAnalysis: 'structural_entity',
-                },
-                createdAt: now,
-              };
-              this.db.insertEdge(edgeAB);
-
-              // Add reverse edge to enable bidirectional highlighting on the canvas
-              const edgeBA: Edge = {
-                id: `${toSection.id}:${fromSection.id}:POLICY_GOVERNS:${params.label}` as Hash,
-                fromId: toSection.id,
-                toId: fromSection.id,
-                edgeType: 'POLICY_GOVERNS',
-                weight: 1.0,
-                evidence: {
-                  reason: `Decision "${params.label}" dictates compliance with policy ${sourceFile.path.split('/').pop()}`,
-                  symbol: params.label,
-                  sourceAnalysis: 'structural_entity',
-                },
-                createdAt: now,
-              };
-              this.db.insertEdge(edgeBA);
-            }
-          }
-        }
-      }
-    }
-
     this.db.appendAudit({
       eventType: 'CONCEPT_CREATED',
       sectionId: null,
@@ -907,7 +858,91 @@ export class Indexer {
       meta: { label: params.label, title: params.title, boundFiles, files: params.files },
     });
 
+    this.rebuildDecisionEdges();
+
     return { decisionId, boundFiles, markdownPath };
+  }
+
+  /**
+   * rebuildDecisionEdges — Rebuilds all POLICY_GOVERNS edges based on the current decision links.
+   * This is critical to keep visual board traces accurate when files are updated or unpacked.
+   */
+  rebuildDecisionEdges(): void {
+    const now = Date.now();
+    // 1. Delete all existing POLICY_GOVERNS edges to prevent staleness
+    (this.db as any)['db'].prepare("DELETE FROM edges WHERE edge_type = 'POLICY_GOVERNS'").run();
+
+    // 2. Query all decisions
+    const decisions = this.db.getAllDecisions();
+
+    for (const d of decisions) {
+      // Get all links for this decision, ordered by rowid to preserve binding/importance order
+      const links = (this.db as any)['db'].prepare(`
+        SELECT dl.*, f.path as filePath, s.id as sectionId
+        FROM decision_links dl
+        JOIN files f ON dl.file_id = f.id
+        JOIN sections s ON dl.section_id = s.id
+        WHERE dl.decision_id = ?
+        ORDER BY dl.rowid ASC
+      `).all(d.id) as Array<{ decision_id: string; section_id: string; file_id: string; chain_link: string; chain_state: string; filePath: string; sectionId: string }>;
+
+      if (links.length > 1) {
+        // Group by file path to keep order of files (as single file may have multiple sections bound)
+        const filesMap = new Map<string, string[]>(); // filePath -> sectionIds
+        const filesOrder: string[] = [];
+        for (const link of links) {
+          if (!filesMap.has(link.filePath)) {
+            filesMap.set(link.filePath, []);
+            filesOrder.push(link.filePath);
+          }
+          filesMap.get(link.filePath)!.push(link.sectionId);
+        }
+
+        if (filesOrder.length > 1) {
+          const sourcePath = filesOrder[0]!;
+          const sourceSections = filesMap.get(sourcePath)!;
+          const fromSectionId = sourceSections[0]!;
+          const sourceFilename = sourcePath.split('\\').pop()!.split('/').pop()!;
+
+          for (let i = 1; i < filesOrder.length; i++) {
+            const targetPath = filesOrder[i]!;
+            const targetSections = filesMap.get(targetPath)!;
+            for (const toSectionId of targetSections) {
+              const edgeAB: Edge = {
+                id: `${fromSectionId}:${toSectionId}:POLICY_GOVERNS:${d.label}` as Hash,
+                fromId: fromSectionId as Hash,
+                toId: toSectionId as Hash,
+                edgeType: 'POLICY_GOVERNS',
+                weight: 1.0,
+                evidence: {
+                  reason: `Decision "${d.label}" dictates compliance with policy ${sourceFilename}`,
+                  symbol: d.label,
+                  sourceAnalysis: 'structural_entity',
+                },
+                createdAt: now,
+              };
+              this.db.insertEdge(edgeAB);
+
+              // Add reverse edge to enable bidirectional highlighting on the canvas
+              const edgeBA: Edge = {
+                id: `${toSectionId}:${fromSectionId}:POLICY_GOVERNS:${d.label}` as Hash,
+                fromId: toSectionId as Hash,
+                toId: fromSectionId as Hash,
+                edgeType: 'POLICY_GOVERNS',
+                weight: 1.0,
+                evidence: {
+                  reason: `Decision "${d.label}" dictates compliance with policy ${sourceFilename}`,
+                  symbol: d.label,
+                  sourceAnalysis: 'structural_entity',
+                },
+                createdAt: now,
+              };
+              this.db.insertEdge(edgeBA);
+            }
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -1207,8 +1242,15 @@ export class Indexer {
         actor: 'cli',
         meta: { label: dl.decisionLabel, isDecisionLink: true },
       });
-      return;
     }
+  }
+
+  /**
+   * recordDriftExplanation — called by the rpn_record_drift_explanation MCP tool.
+   * Records a custom plain-English explanation of why a cryptographic chain broke.
+   */
+  recordDriftExplanation(conceptOrDecisionId: Hash, sectionId: Hash | null, explanation: string): void {
+    this.db.updateDriftExplanation(conceptOrDecisionId, sectionId, explanation);
   }
 
   // ─── Public Accessors ─────────────────────────────────────────────────────────

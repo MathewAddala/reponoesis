@@ -8,10 +8,7 @@
     "**/build/**",
     "**/.engine/**",
     "**/*.min.js",
-    "**/*.map",
-    "**/package-lock.json",
-    "**/pnpm-lock.yaml",
-    "**/yarn.lock"
+    "**/*.map"
   ],
   "enabledParsers": [
     "typescript",
@@ -23,17 +20,12 @@
     "env",
     "text"
   ],
-  "ai": {
-    "primaryModel": "gemini-2.0-flash",
-    "localModel": "llama3.2",
-    "geminiApiKey": null,
-    "consensusRequired": false,
-    "embeddingModel": "text-embedding-004"
-  },
   "gatekeeper": {
     "blockOnCritical": true,
     "blockOnHigh": false,
     "warnOnMedium": true,
-    "maxDepth": 8
+    "maxDepth": 8,
+    "disableSyntacticEdges": false,
+    "disableSemanticEdges": false
   }
 }

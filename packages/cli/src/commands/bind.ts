@@ -75,6 +75,11 @@ export async function bindCommand(decisionLabel: string, filePath: string): Prom
 
   db.close();
 
+  // Rebuild decision edges to ensure POLICY_GOVERNS relationships are updated
+  const indexer2 = new Indexer(config);
+  indexer2.rebuildDecisionEdges();
+  indexer2.close();
+
   const relativeFile = filePath.replace(cwd + '\\', '').replace(cwd + '/', '');
   const firstSection = sections[0]!;
   const lastSection = sections[sections.length - 1]!;

@@ -35,17 +35,17 @@ This is not a bug. It's a structural gap — no tool tracks semantic dependencie
 
 ## Screenshots
 
-### 1. Visual HUD Circuit Board (`rpn ui`)
-Every file is rendered as an SOIC package on a dark circuit grid, displaying semantic connections as PCB traces.
-![Visual HUD Circuit Board](assets/visualizer.png)
+### 1. Handover Integrity Center (`rpn status` / `rpn review`)
+View the integrity dashboard, active context desynchronization alerts, code diff mutations, and governing ADR rationale details.
+![Handover Integrity Center](assets/dashboard.png)
 
-### 2. Handover Sandbox
-Test URL imports and visualize dependencies between codebases and files interactively.
-![Handover Sandbox](assets/sandbox.png)
+### 2. Interactive Circuit Visualizer (`rpn ui`)
+Every file and ADR is rendered as a package on a dark PCB board grid, displaying semantic concept connections and active drift violations as glowing trace lines.
+![Interactive Circuit Visualizer](assets/visualizer.png)
 
-### 3. Active Contradiction Dashboard (`rpn status`)
-View the summary of valid chains, broken chains, and active logic contradictions before committing.
-![Active Contradiction Dashboard](assets/dashboard.png)
+### 3. Rationale Ledger (ADR Manager)
+Browse the list of active Architectural Decision Records (ADRs), check their status, and audit governed files with agent-verified drift insights.
+![Rationale Ledger](assets/ledger.png)
 
 ---
 
